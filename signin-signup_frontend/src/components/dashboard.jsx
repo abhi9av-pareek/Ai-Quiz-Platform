@@ -275,18 +275,13 @@ const TOP3 = [
 ════════════════════════════════════════════════ */
 function Dashboard() {
   const navigate = useNavigate();
-
-  /* ── existing state (unchanged) ── */
   const [openProfile, setOpenProfile] = useState(false);
   const [user, setUser] = useState({ name: "User", streak: 0, email: "" });
-
-  /* ── new state ── */
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("today");
   const [showWeakTopics, setShowWeakTopics] = useState(false);
 
-  /* ── existing useEffect (unchanged, + API call added inside) ── */
   useEffect(() => {
     const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
@@ -325,14 +320,12 @@ function Dashboard() {
     }
   };
 
-  /* ── existing logout (unchanged) ── */
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/");
   };
 
-  /* ── quick action handlers ── */
   const handleRandomQuiz = () => {
     const subject = dashboard?.randomQuizSubject || "Mathematics";
     navigate("/QuizSetup", { state: { prefilledSubject: subject } });
@@ -378,7 +371,7 @@ function Dashboard() {
     <>
       <style>{css}</style>
       <div className="bb-root">
-        {/* NAV — existing logic, restyled */}
+        {/* NAV */}
         <nav className="bb-nav">
           <div className="bb-logo">
             <div className="bb-logo-icon">🧠</div>
@@ -693,7 +686,7 @@ function Dashboard() {
           </main>
         )}
 
-        {/* ── PROFILE SIDEBAR — existing logic unchanged ── */}
+        {/* ── PROFILE SIDEBAR ── */}
         {openProfile && (
           <div className="bb-backdrop" onClick={() => setOpenProfile(false)} />
         )}

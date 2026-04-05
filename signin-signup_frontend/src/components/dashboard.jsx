@@ -505,7 +505,7 @@ function Dashboard() {
                 ) : (
                   <div className="bb-weak-list">
                     {[...weakTopics]
-                      .sort((a, b) => a.avgScore - b.avgScore) // worst first
+                      .sort((a, b) => a.avgScore - b.avgScore)
                       .map((wt, i) => (
                         <div key={i} className="bb-weak-item">
                           <div

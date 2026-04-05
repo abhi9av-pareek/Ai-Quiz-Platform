@@ -21,6 +21,8 @@ connectDB();
 // middleware
 app.use(cors());
 app.use(express.json());
+// quiz routes
+app.use("/api/quiz", quizRoutes);
 
 // routes
 app.use("/api/quiz", quizRoutes);

@@ -80,29 +80,47 @@ function PanelParticles() {
   );
 }
 
-function GoogleLoginButton({ setIsLoading }) {
+function GoogleLoginButton({ setIsLoading, setError }) {
   const navigate = useNavigate();
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
         setIsLoading(true);
+        if (setError) setError("");
         const res = await axios.post("/api/auth/google", { token: tokenResponse.access_token });
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data));
         navigate("/dashboard");
       } catch (error) {
-        alert(error.response?.data?.message || "Google login failed");
+        const msg = error.response?.data?.message || "Google login failed";
+        if (setError) setError(msg);
+        else alert(msg);
       } finally {
         setIsLoading(false);
       }
     },
-    onError: () => {
-      alert("Google login failed");
+    onError: (err) => {
+      console.warn("Google login error callback:", err);
+      const msg = "Google sign-in popup was closed or unverified.";
+      if (setError) setError(msg);
+      else alert(msg);
     }
   });
 
+  const onGoogleClick = (e) => {
+    if (e) e.preventDefault();
+    try {
+      handleGoogleLogin();
+    } catch (err) {
+      console.error("Google Login trigger error:", err);
+      const msg = "Google Login is currently unavailable. Please log in with Email & Password.";
+      if (setError) setError(msg);
+      else alert(msg);
+    }
+  };
+
   return (
-    <button className="gl-btn-google" id="login-google" onClick={() => handleGoogleLogin()}>
+    <button type="button" className="gl-btn-google" id="login-google" onClick={onGoogleClick}>
       <svg viewBox="0 0 24 24" fill="currentColor">
         <path
           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -131,20 +149,28 @@ function LoginModern() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (loginError) setLoginError("");
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
+    if (!formData.email || !formData.password) {
+      setLoginError("Please enter both email and password.");
+      return;
+    }
     try {
       setIsLoading(true);
+      setLoginError("");
       const res = await axios.post("/api/auth/login", formData);
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data));
       navigate("/dashboard");
     } catch (error) {
-      alert(error.response?.data?.message || "Login failed");
+      setLoginError(error.response?.data?.message || "Login failed. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }
@@ -559,6 +585,23 @@ function LoginModern() {
           cursor: not-allowed;
         }
 
+        .gl-error-banner {
+          margin-bottom: 1.25rem;
+          padding: 0.7rem 1rem;
+          background: rgba(255,59,48,0.1);
+          border: 1px solid rgba(255,59,48,0.25);
+          border-radius: 10px;
+          color: #FF6B6B;
+          font-size: 0.82rem;
+          text-align: center;
+          animation: glSlideDown 0.4s ease both;
+        }
+
+        @keyframes glSlideDown {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
         .gl-spinner {
           width: 16px;
           height: 16px;
@@ -812,74 +855,83 @@ function LoginModern() {
             </h1>
             <p className="gl-subheading">Please enter your details</p>
 
-            {/* Email */}
-            <div className="gl-field">
-              <label className="gl-label">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="you@example.com"
-                className="gl-input"
-                autoComplete="email"
-                id="login-email"
-              />
-            </div>
+            {/* Error Banner */}
+            {loginError && (
+              <div className="gl-error-banner" id="login-error-banner">
+                {loginError}
+              </div>
+            )}
 
-            {/* Password */}
-            <div className="gl-field">
-              <label className="gl-label">Password</label>
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="gl-input"
-                autoComplete="current-password"
-                id="login-password"
-              />
+            <form onSubmit={handleLogin}>
+              {/* Email */}
+              <div className="gl-field">
+                <label className="gl-label">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="you@example.com"
+                  className="gl-input"
+                  autoComplete="email"
+                  id="login-email"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="gl-field">
+                <label className="gl-label">Password</label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  className="gl-input"
+                  autoComplete="current-password"
+                  id="login-password"
+                />
+                <button
+                  type="button"
+                  className="gl-eye-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label="Toggle password visibility"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+
+              {/* Remember / Forgot */}
+              <div className="gl-options">
+                <label className="gl-remember">
+                  <input type="checkbox" />
+                  <span>Remember for 30 days</span>
+                </label>
+                <Link to="#" className="gl-forgot">
+                  Forgot password?
+                </Link>
+              </div>
+
+              {/* Login button */}
               <button
-                type="button"
-                className="gl-eye-btn"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label="Toggle password visibility"
+                type="submit"
+                className="gl-btn-login"
+                disabled={isLoading}
+                id="login-submit"
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {isLoading ? (
+                  <>
+                    <div className="gl-spinner" />
+                    Logging in...
+                  </>
+                ) : (
+                  "Log In"
+                )}
               </button>
-            </div>
-
-            {/* Remember / Forgot */}
-            <div className="gl-options">
-              <label className="gl-remember">
-                <input type="checkbox" />
-                <span>Remember for 30 days</span>
-              </label>
-              <Link to="#" className="gl-forgot">
-                Forgot password?
-              </Link>
-            </div>
-
-            {/* Login button */}
-            <button
-              className="gl-btn-login"
-              onClick={handleLogin}
-              disabled={isLoading}
-              id="login-submit"
-            >
-              {isLoading ? (
-                <>
-                  <div className="gl-spinner" />
-                  Logging in...
-                </>
-              ) : (
-                "Log In"
-              )}
-            </button>
+            </form>
 
             {/* Google login */}
-            <GoogleLoginButton setIsLoading={setIsLoading} />
+            <GoogleLoginButton setIsLoading={setIsLoading} setError={setLoginError} />
 
             {/* Sign up nudge */}
             <p className="gl-signup-nudge">

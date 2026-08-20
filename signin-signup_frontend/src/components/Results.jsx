@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AlertTriangle, AlertCircle, CheckCircle, BookOpen, Rocket, BarChart3, FileText, Flame } from "lucide-react";
+import SuggestionBox from "./common/SuggestionBox";
 
 /* ─── CSS ─── */
 const css = `
@@ -749,6 +750,9 @@ export default function Results() {
               )}
             </div>
           )}
+
+          {/* ── SUGGESTION & FEEDBACK BOX ── */}
+          <SuggestionBox context="Quiz Test Completion" title="Feedback on this Quiz Test 💡" />
 
           {/* ── MOTIVATIONAL QUOTE ── */}
           <div className="rs-quote-card rs-fadein-4">

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
-import { Sigma, Atom, FlaskConical, Leaf, Monitor, PenLine, BookOpen, ScanLine, Target, Bookmark, Users, Flame, X, Brain, TrendingDown, ChevronRight, ChevronDown, Code } from "lucide-react";
+import { Sigma, Atom, FlaskConical, Leaf, Monitor, PenLine, BookOpen, ScanLine, Target, Bookmark, Users, Flame, X, Brain, TrendingDown, ChevronRight, ChevronDown, Code, Layers } from "lucide-react";
 import { AvatarRender } from "./Profile";
+import SuggestionBox from "./common/SuggestionBox";
 
 /* ─── CSS ─── */
 const css = `
@@ -686,6 +687,7 @@ function Dashboard() {
 
             {/* ── QUICK ACTIONS ── */}
             <div className="bb-quick-row">
+
               <div
                 className="bb-quick-btn"
                 style={{ border: "1px solid rgba(129, 140, 248, 0.4)", background: "rgba(129, 140, 248, 0.08)" }}
@@ -713,13 +715,6 @@ function Dashboard() {
                 <div className="qb-label" style={{ cursor: "pointer" }}>
                   Bookmarks
                 </div>
-              </div>
-              <div
-                className="bb-quick-btn"
-                onClick={() => alert("Challenge feature coming soon!")}
-              >
-                <div className="qb-icon" style={{ display: "flex", justifyContent: "center" }}><Users size={20} /></div>
-                <div className="qb-label">Challenge</div>
               </div>
             </div>
 
@@ -836,6 +831,8 @@ function Dashboard() {
                 )}
               </div>
             )}
+
+
 
             {/* ── YOUR SUBJECTS (real — from quiz history) ── */}
             <div className="bb-section-header">
@@ -991,6 +988,9 @@ function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {/* ── SUGGESTION & FEEDBACK BOX ── */}
+            <SuggestionBox context="Dashboard Bottom" title="Help Us Build Gyantra Better 💡" />
           </main>
         )}
 
@@ -1018,6 +1018,8 @@ function Dashboard() {
             <div className="profile" onClick={() => navigate("/profile")}>
               My Profile
             </div>
+
+
 
             <div onClick={() => navigate("/analytics")}>
               Analytics

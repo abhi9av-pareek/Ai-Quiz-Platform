@@ -86,23 +86,35 @@ function GoogleSignupButton({ setErrors, setLoading }) {
     onSuccess: async (tokenResponse) => {
       try {
         setLoading(true);
+        setErrors((prev) => ({ ...prev, submit: "" }));
         const res = await axios.post("/api/auth/google", { token: tokenResponse.access_token });
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data));
         navigate("/dashboard");
       } catch (error) {
-        setErrors({ submit: error.response?.data?.message || "Google signup failed" });
+        setErrors((prev) => ({ ...prev, submit: error.response?.data?.message || "Google signup failed" }));
       } finally {
         setLoading(false);
       }
     },
-    onError: () => {
-      setErrors({ submit: "Google signup failed" });
+    onError: (err) => {
+      console.warn("Google signup error callback:", err);
+      setErrors((prev) => ({ ...prev, submit: "Google sign-up popup was closed or unverified." }));
     }
   });
 
+  const onGoogleClick = (e) => {
+    if (e) e.preventDefault();
+    try {
+      handleGoogleSignup();
+    } catch (err) {
+      console.error("Google Signup trigger error:", err);
+      setErrors((prev) => ({ ...prev, submit: "Google Signup is currently unavailable. Please sign up using the form." }));
+    }
+  };
+
   return (
-    <button type="button" className="gs-btn-google" id="signup-google" onClick={() => handleGoogleSignup()} style={{
+    <button type="button" className="gs-btn-google" id="signup-google" onClick={onGoogleClick} style={{
       width: '100%',
       padding: '0.85rem 1rem',
       border: '1px solid rgba(0,229,192,0.2)',

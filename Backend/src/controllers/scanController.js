@@ -5,97 +5,161 @@ import ScanRecord from "../Models/scan.js";
 import Quiz from "../Models/quiz.js";
 
 /*
-   GyanS Scanner Controller
-   Uses NVIDIA GLM-5.1 for text extraction from image descriptions
-   and question generation from scanned MCQ content.
-   
-   Flow: Image → base64 → NVIDIA Vision API → extract MCQs → format for quiz
-   
-   Since GLM-5.1 is text-only, we use a two-phase approach:
-   Phase 1: Send image to a vision-capable model to describe the content
-   Phase 2: Use GLM-5.1 to structure the description into quiz-ready MCQs
-   
-   For speed optimization, we do this in a SINGLE combined prompt
-   to the vision model which can both see and reason.
+   GyanS Scanner Controller — v2
+   Uses NVIDIA Vision (llama-3.2-11b-vision) for image/scanned-PDF OCR
+   and llama-3.1-8b for text-PDF extraction.
+
+   ANTI-HALLUCINATION RULES (v2):
+   - NEVER invent answers. Only extract what is VISIBLY printed.
+   - If the correct answer cannot be determined from the image/text, use "?" — do NOT guess.
+   - Preserve mathematical/scientific notation exactly — no simplification.
+   - Mark confidence: "high" if answer is printed, "low" if inferred.
+   - subjectHint narrows domain to prevent cross-domain hallucination.
+   - Post-extraction validation pass flags garbled OCR and suspicious questions.
 */
 
 const NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-// Vision model for image understanding + text extraction
-const VISION_MODEL = "meta/llama-4-maverick-17b-128e-instruct";
-// Fallback text model for question generation
-const TEXT_MODEL = "z-ai/glm-5.1";
+// Active working models on NVIDIA API
+const VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
+const TEXT_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
 
-// Keep-alive agents
-const httpAgent = new http.Agent({ keepAlive: true, keepAliveMsecs: 30000 });
-const httpsAgent = new https.Agent({ keepAlive: true, keepAliveMsecs: 30000 });
+const VISION_MODELS = [
+  "meta/llama-3.2-11b-vision-instruct",
+];
+
+const TEXT_MODELS = [
+  "nvidia/nemotron-3-nano-30b-a3b",
+  "meta/llama-3.2-11b-vision-instruct",
+  "nvidia/nemotron-3.5-lightning-30b-a3b",
+];
 
 /* ═══════════════════════════════════════════════════════════
    HELPER — Create a compressed thumbnail from base64 image
-   Keeps just enough for history view (strips to ~50KB max)
 ═══════════════════════════════════════════════════════════ */
 const createThumbnail = (base64Image) => {
-  // Just keep the first portion for a tiny thumbnail reference
   if (!base64Image) return "";
-  // Store a very small version - just the header + first 20KB
   const maxLen = 20000;
   if (base64Image.length <= maxLen) return base64Image;
   return base64Image.substring(0, maxLen);
 };
 
 /* ═══════════════════════════════════════════════════════════
-   HELPER — Build the extraction prompt
-   Single prompt that tells the vision model to:
-   1. Read the image and detect MCQs
-   2. Extract questions + options
-   3. Generate correct answers
-   4. Generate explanations
-   5. Assign difficulty
+   HELPER — Build the vision OCR extraction prompt (v2)
+   Anti-hallucination: extract-only mode, confidence, subjectHint,
+   math notation preservation.
 ═══════════════════════════════════════════════════════════ */
-const buildExtractionPrompt = (imageCount) => {
-  return `You are an expert MCQ analyzer. Analyze the provided image${imageCount > 1 ? 's' : ''} of a test/exam paper.
+const buildExtractionPrompt = (imageCount, subjectHint = "") => {
+  const subjectLine = subjectHint
+    ? `\nSUBJECT CONTEXT: This document is about "${subjectHint}". Only extract questions related to this subject.`
+    : "";
 
-TASK: Extract ALL multiple-choice questions (MCQs) visible in the image${imageCount > 1 ? 's' : ''}.
+  return `You are a precise OCR system specialized in extracting multiple-choice questions (MCQs) from exam papers. Analyze the provided image${imageCount > 1 ? "s" : ""} carefully.${subjectLine}
 
-For EACH question found, provide:
-1. The exact question text
-2. All options (A, B, C, D) exactly as written
-3. The correct answer (A, B, C, or D) - use your knowledge to determine the correct answer
-4. A brief explanation of why that answer is correct
-5. The topic/subject area of the question
-6. Difficulty level (Easy, Medium, or Hard)
+TASK: Extract ALL multiple-choice questions (MCQs) that are visibly printed in the image${imageCount > 1 ? "s" : ""}.
 
-Return ONLY valid JSON in this exact format:
-{"questions":[{"questionText":"","options":["A) ...","B) ...","C) ...","D) ..."],"correctAnswer":"A","explanation":"","topic":"","difficulty":"Medium"}]}
+══════════════════════════════════════════
+CRITICAL ANTI-HALLUCINATION RULES — FOLLOW EXACTLY:
+══════════════════════════════════════════
+1. EXTRACT ONLY — Do NOT invent, rephrase, or paraphrase ANY part of ANY question. Copy text letter-for-letter.
+2. CORRECT ANSWER — ONLY set correctAnswer if an answer key, tick mark, circled option, bold/underlined option, or explicit marking is VISIBLE in the image. If no answer is visibly marked, set correctAnswer to "?" — NEVER guess.
+3. CONFIDENCE — Set confidence to "high" if the correct answer was clearly printed/marked. Set to "low" if you are inferring from logic or external knowledge.
+4. MATHEMATICAL NOTATION — Preserve ALL math symbols exactly: fractions (a/b), powers (x²), roots (√), integrals (∫), Greek letters (α,β,γ), subscripts/superscripts. Do NOT evaluate or simplify equations. If a symbol is unclear, write it as [unclear symbol].
+5. PARTIAL QUESTIONS — If a question is cut off at the edge, include what IS visible and append [Partial] to the questionText.
+6. OPTIONS — Extract all 4 options (A, B, C, D) exactly as printed. If an option is not visible, write "[Not visible]".
+7. TOPIC — Identify the specific subject area (e.g., "Calculus", "Organic Chemistry", "Electrostatics", "World War II").
+8. DIFFICULTY — Classify as Easy, Medium, or Hard based on the question complexity.
+9. EXPLANATION — Write a factual 1-2 sentence explanation ONLY if correctAnswer is known (not "?"). If correctAnswer is "?", set explanation to "Answer not marked in source — please verify manually."
+10. NO SKIPPING — Include every MCQ you can see. Prioritize accuracy over speed.
+11. RETURN ONLY VALID JSON — No preamble, markdown, or extra text.
 
-RULES:
-- Extract EVERY MCQ visible, do not skip any
-- Clean up any OCR-like artifacts in the text
-- If options are partially visible, do your best to reconstruct them
-- If you cannot determine the correct answer, make your best educated guess
-- Keep explanations concise (1-2 sentences)
-- Return ONLY the JSON, no other text`;
+JSON FORMAT (return exactly this structure):
+{"questions":[{"questionText":"","options":["A) ...","B) ...","C) ...","D) ..."],"correctAnswer":"A","confidence":"high","explanation":"","topic":"","difficulty":"Medium"}]}
+
+Rules for correctAnswer field:
+- Use "A", "B", "C", or "D" when the answer is clearly marked in the image.
+- Use "?" when no answer is marked — this is the CORRECT behavior, not an error.
+
+If NO MCQs are visible, return: {"questions":[]}`;
 };
 
 /* ═══════════════════════════════════════════════════════════
-   HELPER — Build prompt for text-only model (GLM-5.1)
-   Used when vision model fails or for re-processing
+   HELPER — Build prompt for text-based PDF extraction (v2)
+   Same anti-hallucination rules, adapted for text content.
 ═══════════════════════════════════════════════════════════ */
-const buildTextExtractionPrompt = (imageDescription) => {
-  return `You are an expert MCQ analyzer. Here is a description of an exam/test paper image:
+const buildTextExtractionPrompt = (textContent, subjectHint = "") => {
+  const subjectLine = subjectHint
+    ? `\nSUBJECT CONTEXT: This document is about "${subjectHint}". Only extract questions related to this subject.`
+    : "";
 
-${imageDescription}
+  return `You are a precise MCQ extractor. Below is text extracted from a PDF exam paper with line breaks preserved.${subjectLine}
 
-Extract ALL MCQs from this description. For each question provide:
-1. Question text
-2. Options (A, B, C, D)
-3. Correct answer (A/B/C/D)
-4. Brief explanation
-5. Topic
-6. Difficulty (Easy/Medium/Hard)
+TASK: Extract ALL multiple-choice questions (MCQs) present in this text.
 
-Return ONLY JSON:
-{"questions":[{"questionText":"","options":["","","",""],"correctAnswer":"A","explanation":"","topic":"","difficulty":"Medium"}]}`;
+══════════════════════════════════════════
+CRITICAL ANTI-HALLUCINATION RULES — FOLLOW EXACTLY:
+══════════════════════════════════════════
+1. EXTRACT ONLY — Do NOT invent or generate any questions not present in the text.
+2. COPY EXACTLY — Extract question text and options VERBATIM. Do not paraphrase or fix grammar.
+3. CORRECT ANSWER — Only set correctAnswer if an answer key is present in the text (e.g., "Ans: B", "Answer: C", marked with *). If no answer is provided, use "?" — NEVER guess or use external knowledge.
+4. CONFIDENCE — Set confidence to "high" if the answer appears in the text. Set to "low" if you are inferring.
+5. MATHEMATICAL NOTATION — Preserve ALL formulas and math expressions exactly as written. Do NOT evaluate or simplify. Use LaTeX-style notation where helpful (e.g., x^2, sqrt(x), integral).
+6. OPTIONS RECONSTRUCTION — If options appear on separate lines (e.g. "A) Newton" on one line, "B) Einstein" on next line), correctly associate them to the nearest question above.
+7. TOPIC — Identify the specific subject (e.g., "Thermodynamics", "Linear Algebra", "Indian History").
+8. DIFFICULTY — Easy, Medium, or Hard.
+9. EXPLANATION — Only provide if correctAnswer is known. Otherwise: "Answer not marked in source — please verify manually."
+10. RETURN ONLY VALID JSON — No markdown, no explanation text.
+
+JSON FORMAT:
+{"questions":[{"questionText":"","options":["A) ...","B) ...","C) ...","D) ..."],"correctAnswer":"A","confidence":"high","explanation":"","topic":"","difficulty":"Medium"}]}
+
+correctAnswer MUST be one of: "A", "B", "C", "D", or "?". Use "?" when unsure.
+
+If NO MCQs are present: {"questions":[]}
+
+TEXT CONTENT:
+${textContent}`;
+};
+
+/* ═══════════════════════════════════════════════════════════
+   HELPER — Instant local regex parser for standard structured text
+   Extracts questions like 'Q1. ... A) ... B) ... C) ... D) ...' in <1ms
+═══════════════════════════════════════════════════════════ */
+const parseMCQsLocally = (text) => {
+  if (!text || typeof text !== "string") return [];
+  const questions = [];
+  const qBlocks = text.split(/(?=\n\s*(?:Q(?:uestion)?\s*\d+|\d+)[\.\)]\s+)/gi);
+
+  for (const block of qBlocks) {
+    const qMatch = block.match(/^\s*(?:Q(?:uestion)?\s*\d+|\d+)[\.\)]\s+([\s\S]+?)(?=(?:^[A-D][\.\)]|\n\s*[A-D][\.\)]|\n\s*\([A-D]\)|\n\s*Option\s+[A-D]))/im);
+    if (!qMatch) continue;
+    const questionText = qMatch[1].replace(/^\d+[\.\)]\s*/, "").trim();
+
+    const optRegex = /(?:^|\n)\s*(?:([A-D])[).\:\s]+|\(([A-D])\)\s*)([^\n]+)/gi;
+    const options = [];
+    let optMatch;
+    while ((optMatch = optRegex.exec(block)) !== null) {
+      options.push(optMatch[3].trim());
+    }
+
+    if (options.length >= 2) {
+      const ansMatch = block.match(/(?:Ans(?:wer)?|Correct\s+Option)[\s\:\-\.]*([A-D])/i);
+      const correctAnswer = ansMatch ? ansMatch[1].toUpperCase() : "?";
+      const expMatch = block.match(/(?:Explanation|Exp)[\s\:\-\.]+([^\n]+)/i);
+      const explanation = expMatch ? expMatch[1].trim() : "Extracted from source.";
+
+      questions.push({
+        questionText,
+        options: options.slice(0, 4),
+        correctAnswer,
+        confidence: ansMatch ? "high" : "low",
+        explanation,
+        topic: "General",
+        difficulty: "Medium",
+      });
+    }
+  }
+  return questions;
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -103,38 +167,72 @@ Return ONLY JSON:
 ═══════════════════════════════════════════════════════════ */
 const repairJSON = (raw) => {
   let text = raw;
+  // Strip markdown code fences
   text = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "");
+  // Remove control characters (except \n, \r, \t)
   text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+
+  // Find outermost JSON object boundaries
   const first = text.indexOf("{");
   const last = text.lastIndexOf("}");
-  if (first === -1 || last === -1) throw new Error("No JSON object found");
+  if (first === -1 || last === -1) throw new Error("No JSON object found in response");
   text = text.slice(first, last + 1);
+
+  // Remove trailing commas before closing brackets/braces
   text = text.replace(/,\s*([}\]])/g, "$1");
+
   return text;
 };
 
+/* ═══════════════════════════════════════════════════════════
+   HELPER — Salvage questions from truncated/partial JSON
+═══════════════════════════════════════════════════════════ */
+const salvagePartialJSON = (raw) => {
+  const blocks = [];
+  const regex = /\{\s*"questionText"\s*:\s*"(?:[^"\\]|\\.)*"(?:[^{}]|\{[^{}]*\})*"correctAnswer"\s*:\s*"[ABCD?]"[^{}]*\}/gs;
+  let match;
+  while ((match = regex.exec(raw)) !== null) {
+    try {
+      const repaired = repairJSON(match[0]);
+      const q = JSON.parse(repaired);
+      if (q.questionText && q.correctAnswer) blocks.push(q);
+    } catch (_) {}
+  }
+  return blocks;
+};
+
 const parseExtractedQuestions = (rawText) => {
-  // Strategy 1: direct parse
+  // Strategy 1: Direct parse of the complete JSON
   try {
     const cleaned = repairJSON(rawText);
     const parsed = JSON.parse(cleaned);
     const questions = Array.isArray(parsed) ? parsed : parsed?.questions;
     if (Array.isArray(questions) && questions.length > 0) return questions;
+    if (Array.isArray(questions) && questions.length === 0) return [];
   } catch (_) {}
 
-  // Strategy 2: extract individual question objects
+  // Strategy 2: Salvage partial/truncated JSON
   try {
-    const blocks = [];
-    const regex = /\{[^{}]*"questionText"\s*:[^{}]*"correctAnswer"\s*:\s*"[ABCD]"[^{}]*\}/gs;
-    let match;
-    while ((match = regex.exec(rawText)) !== null) {
-      try {
-        const q = JSON.parse(repairJSON(match[0]));
-        if (q.questionText && q.options && q.correctAnswer) blocks.push(q);
-      } catch (_) {}
+    const salvaged = salvagePartialJSON(rawText);
+    if (salvaged.length > 0) {
+      console.log(`  ⚠ Salvaged ${salvaged.length} questions from partial JSON response`);
+      return salvaged;
     }
-    if (blocks.length > 0) return blocks;
   } catch (_) {}
+
+  // Strategy 4: If AI returned formatted text instead of JSON, parse MCQs directly
+  try {
+    const textMCQs = parseMCQsLocally(rawText);
+    if (textMCQs.length > 0) {
+      console.log(`  ✓ Extracted ${textMCQs.length} questions from text-formatted response`);
+      return textMCQs;
+    }
+  } catch (_) {}
+
+  // Strategy 5: If the text is an ad or contains no MCQs
+  if (rawText.toLowerCase().includes("no multiple-choice") || rawText.toLowerCase().includes("advertisement") || rawText.toLowerCase().includes("no mcq")) {
+    return [];
+  }
 
   throw new Error("Could not parse AI response as valid MCQ JSON");
 };
@@ -142,97 +240,110 @@ const parseExtractedQuestions = (rawText) => {
 /* ═══════════════════════════════════════════════════════════
    HELPER — Call NVIDIA API with vision support
 ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   HELPER — Call NVIDIA API with vision support
+═══════════════════════════════════════════════════════════ */
 const callNvidiaVision = async (images, prompt) => {
   const content = [{ type: "text", text: prompt }];
 
-  // Add each image as base64
   for (const img of images) {
-    // Detect mime type from base64 header or default to jpeg
     let mimeType = "image/jpeg";
     if (img.startsWith("data:")) {
       const match = img.match(/^data:(image\/\w+);/);
       if (match) mimeType = match[1];
     }
-
-    const base64Data = img.startsWith("data:")
-      ? img.split(",")[1]
-      : img;
-
+    const base64Data = img.startsWith("data:") ? img.split(",")[1] : img;
     content.push({
       type: "image_url",
-      image_url: {
-        url: `data:${mimeType};base64,${base64Data}`,
-      },
+      image_url: { url: `data:${mimeType};base64,${base64Data}` },
     });
   }
 
-  const response = await axios.post(
-    NVIDIA_API_URL,
-    {
-      model: VISION_MODEL,
-      messages: [{ role: "user", content }],
-      temperature: 0.3,
-      max_tokens: 4096,
-      top_p: 0.7,
-      stream: false,
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.NVIDIA_API_KEY}`,
-      },
-      timeout: 120000,
-      httpAgent,
-      httpsAgent,
-      maxContentLength: 50 * 1024 * 1024,
-      maxBodyLength: 50 * 1024 * 1024,
-    },
-  );
+  for (const model of VISION_MODELS) {
+    try {
+      const response = await axios.post(
+        NVIDIA_API_URL,
+        {
+          model,
+          messages: [{ role: "user", content }],
+          temperature: 0.05,
+          max_tokens: 4096,
+          top_p: 0.5,
+          stream: false,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.NVIDIA_API_KEY}`,
+          },
+          timeout: 50000,
+        },
+      );
 
-  const rawText = response.data?.choices?.[0]?.message?.content;
-  if (!rawText) throw new Error("Empty response from NVIDIA Vision API");
-  return rawText;
+      const rawText = response.data?.choices?.[0]?.message?.content;
+      if (rawText && rawText.trim().length > 0) return rawText;
+    } catch (err) {
+      console.warn(`Vision model ${model} failed: ${err.message}, trying next...`);
+    }
+  }
+
+  throw new Error("All Vision models failed to generate OCR response");
 };
 
 /* ═══════════════════════════════════════════════════════════
-   HELPER — Call NVIDIA text model (GLM-5.1) as fallback
+   HELPER — Call NVIDIA text model with automatic model fallback
 ═══════════════════════════════════════════════════════════ */
 const callNvidiaText = async (prompt) => {
-  const response = await axios.post(
-    NVIDIA_API_URL,
-    {
-      model: TEXT_MODEL,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 4096,
-      top_p: 0.7,
-      stream: false,
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.NVIDIA_API_KEY}`,
-      },
-      timeout: 120000,
-      httpAgent,
-      httpsAgent,
-    },
-  );
+  let lastError = null;
 
-  const rawText = response.data?.choices?.[0]?.message?.content;
-  if (!rawText) throw new Error("Empty response from GLM-5.1");
-  return rawText;
+  for (const model of TEXT_MODELS) {
+    try {
+      const response = await axios.post(
+        NVIDIA_API_URL,
+        {
+          model,
+          messages: [
+            {
+              role: "system",
+              content: "You are a JSON-only MCQ extractor. Output ONLY a valid JSON object matching the requested schema.",
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.1,
+          max_tokens: 4096,
+          top_p: 0.5,
+          stream: false,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.NVIDIA_API_KEY}`,
+          },
+          timeout: 20000,
+        },
+      );
+
+      const rawText = response.data?.choices?.[0]?.message?.content;
+      if (rawText && rawText.trim().length > 0) return rawText;
+    } catch (err) {
+      lastError = err;
+      console.warn(`Text model ${model} failed: ${err.message}, trying next...`);
+    }
+  }
+
+  throw lastError || new Error("All text models failed to extract MCQs");
 };
 
 /* ═══════════════════════════════════════════════════════════
-   HELPER — Sanitize extracted question to quiz-ready format
+   HELPER — Sanitize extracted question to quiz-ready format (v2)
+   Now handles correctAnswer "?" gracefully (sets to null).
 ═══════════════════════════════════════════════════════════ */
 const letterToIndex = (letter) => {
   const map = { A: 0, B: 1, C: 2, D: 3 };
-  return map[String(letter).toUpperCase().trim()] ?? 0;
+  return map[String(letter).toUpperCase().trim()] ?? null;
 };
 
-const sanitizeExtractedQuestion = (q, index) => {
+const sanitizeExtractedQuestion = (q, index, validationResult) => {
   if (typeof q.questionText !== "string" || !q.questionText.trim()) {
     throw new Error(`Question ${index}: missing question text`);
   }
@@ -246,29 +357,88 @@ const sanitizeExtractedQuestion = (q, index) => {
   );
   while (opts.length < 4) opts.push("N/A");
 
+  const rawAnswer = String(q.correctAnswer || "?").toUpperCase().trim();
   const validAnswers = ["A", "B", "C", "D"];
-  const answer = String(q.correctAnswer || "A").toUpperCase().trim();
-  const safeAnswer = validAnswers.includes(answer) ? answer : "A";
+  const isAnswerKnown = validAnswers.includes(rawAnswer);
+
+  const safeAnswer = isAnswerKnown ? rawAnswer : null;
+  const answerIndex = isAnswerKnown ? letterToIndex(rawAnswer) : null;
 
   const validDifficulties = ["Easy", "Medium", "Hard"];
   const difficulty = validDifficulties.includes(q.difficulty) ? q.difficulty : "Medium";
+
+  // Confidence from model response, or from validation pass
+  const confidence = validationResult?.confidence || q.confidence || "high";
+  const warnings = validationResult?.warnings || [];
 
   return {
     subject: String(q.topic || "General").trim(),
     topic: String(q.topic || "General").trim(),
     question: q.questionText.trim(),
     options: opts.slice(0, 4),
-    answer: letterToIndex(safeAnswer),
-    correctAnswer: safeAnswer,
-    explanation: String(q.explanation || "No explanation provided.").trim(),
+    answer: answerIndex,
+    correctAnswer: safeAnswer,          // null if unknown
+    answerUnknown: !isAnswerKnown,      // true when model could not determine answer
+    explanation: String(
+      q.explanation || (isAnswerKnown ? "No explanation provided." : "Answer not marked in source — please verify manually.")
+    ).trim(),
     difficulty,
+    confidence,
+    warnings,
   };
+};
+
+/* ═══════════════════════════════════════════════════════════
+   HELPER — Deduplicate questions across chunks
+═══════════════════════════════════════════════════════════ */
+const deduplicateQuestions = (questions) => {
+  const seen = new Set();
+  return questions.filter((q) => {
+    const key = (q.question || q.questionText || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[^a-z0-9 ]/g, "")
+      .trim()
+      .slice(0, 80);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+/* ═══════════════════════════════════════════════════════════
+   SHARED — Process raw AI questions into sanitized format
+   Used by both extractFromImage and extractPdfText.
+═══════════════════════════════════════════════════════════ */
+const processRawQuestions = (rawQuestions) => {
+  const questions = rawQuestions
+    .map((q, i) => {
+      try {
+        const validation = validateExtractedQuestion(q);
+        if (!validation.valid) {
+          console.warn(`  ⚠ Q${i + 1} validation warnings: ${validation.warnings.join("; ")}`);
+        }
+        return sanitizeExtractedQuestion(q, i, validation);
+      } catch (err) {
+        console.warn(`  ⚠ Skipping question ${i}: ${err.message}`);
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  // Stats for logging
+  const unknownCount = questions.filter((q) => q.answerUnknown).length;
+  const lowConfCount = questions.filter((q) => q.confidence === "low").length;
+  if (unknownCount > 0) console.log(`  ℹ ${unknownCount} questions have no visible answer (marked as unknown)`);
+  if (lowConfCount > 0) console.log(`  ℹ ${lowConfCount} questions have low confidence`);
+
+  return questions;
 };
 
 /* ═══════════════════════════════════════════════════════════
    CONTROLLER 1 — EXTRACT MCQs FROM IMAGE
    POST /api/scan/extract
-   Body: { images: [base64string, ...], fileName: string }
+   Body: { images: [base64string, ...], fileName: string, scanId?: ObjectId, subjectHint?: string }
 ═══════════════════════════════════════════════════════════ */
 export const extractFromImage = async (req, res) => {
   const startTime = Date.now();
@@ -282,7 +452,7 @@ export const extractFromImage = async (req, res) => {
       });
     }
 
-    const { images, fileName = "scan.jpg", scanId } = req.body;
+    const { images, fileName = "scan.jpg", scanId, subjectHint = "" } = req.body;
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return res.status(400).json({
@@ -294,50 +464,72 @@ export const extractFromImage = async (req, res) => {
     if (images.length > 2) {
       return res.status(400).json({
         success: false,
-        message: "Maximum 2 images allowed at this time",
+        message: "Maximum 2 images allowed per request",
       });
     }
 
     const userId = req.user.id;
-    console.log(`\n=== GyanS Scan ===`);
-    console.log(`User: ${userId} | Images: ${images.length} | File: ${fileName}`);
+    console.log(`\n=== GyanS Scan v2 ===`);
+    console.log(`User: ${userId} | Images: ${images.length} | File: ${fileName} | Subject hint: "${subjectHint || "none"}"`);
 
     // ── Phase 1: Send to vision model ──
-    const prompt = buildExtractionPrompt(images.length);
+    const prompt = buildExtractionPrompt(images.length, subjectHint);
     let rawText;
 
     try {
-      console.log("  → Sending to vision model...");
+      console.log("  → Sending to vision model (anti-hallucination mode)...");
       rawText = await callNvidiaVision(images, prompt);
-      console.log(`  ✓ Vision response: ${rawText.slice(0, 150)}`);
+      console.log(`  ✓ Vision response (first 200 chars): ${rawText.slice(0, 200)}`);
     } catch (visionErr) {
-      console.warn(`  ✗ Vision model failed: ${visionErr.message}`);
-      // Fallback: try text model with a generic description prompt
-      console.log("  → Falling back to text model...");
-      rawText = await callNvidiaText(
-        buildTextExtractionPrompt(
-          "An exam paper image was uploaded but could not be processed by the vision model. Please generate 5 sample MCQ questions on General Knowledge as a fallback.",
-        ),
-      );
+      console.error(`  ✗ Vision model failed: ${visionErr.message}`);
+      return res.status(500).json({
+        success: false,
+        message: `OCR failed on this image chunk: ${visionErr.message}. Try re-uploading with a clearer image.`,
+        error: visionErr.message,
+      });
     }
 
     // ── Phase 2: Parse the response ──
-    const rawQuestions = parseExtractedQuestions(rawText);
+    let rawQuestions;
+    try {
+      rawQuestions = parseExtractedQuestions(rawText);
+    } catch (parseErr) {
+      console.error("  ✗ JSON parse failed:", parseErr.message);
+      return res.status(500).json({
+        success: false,
+        message: "AI returned an unparseable response. Please try again.",
+        error: parseErr.message,
+        rawResponse: rawText.slice(0, 500),
+      });
+    }
+
     console.log(`  ✓ Parsed ${rawQuestions.length} questions`);
 
-    // ── Phase 3: Sanitize for quiz format ──
-    const questions = rawQuestions
-      .map((q, i) => {
-        try {
-          return sanitizeExtractedQuestion(q, i);
-        } catch (_) {
-          return null;
-        }
-      })
-      .filter(Boolean);
+    if (rawQuestions.length === 0) {
+      const scanDuration = Date.now() - startTime;
+      console.log("  ℹ No MCQs found in this image chunk");
+      return res.status(200).json({
+        success: true,
+        scanId: scanId || null,
+        questions: [],
+        meta: {
+          totalExtracted: 0,
+          detectedSubject: subjectHint || "General",
+          scanDurationMs: scanDuration,
+          model: VISION_MODEL,
+          note: "No MCQs detected in this image",
+        },
+      });
+    }
+
+    // ── Phase 3: Sanitize + validate ──
+    const questions = processRawQuestions(rawQuestions);
 
     if (questions.length === 0) {
-      throw new Error("No valid questions could be extracted from the image");
+      return res.status(500).json({
+        success: false,
+        message: "Questions were found but could not be formatted correctly. Please try again.",
+      });
     }
 
     const scanDuration = Date.now() - startTime;
@@ -348,14 +540,18 @@ export const extractFromImage = async (req, res) => {
       const t = q.topic || "General";
       topicCounts[t] = (topicCounts[t] || 0) + 1;
     });
-    const detectedSubject = Object.entries(topicCounts).sort(
-      (a, b) => b[1] - a[1],
-    )[0][0];
+    const detectedSubject =
+      subjectHint ||
+      Object.entries(topicCounts).sort((a, b) => b[1] - a[1])[0][0];
 
     const questionsData = rawQuestions.map((q) => ({
       questionText: q.questionText?.trim() || "",
       options: (q.options || []).map((o) => String(o).replace(/^[A-D][).\s]+/i, "").trim()),
-      correctAnswer: String(q.correctAnswer || "A").toUpperCase().trim(),
+      correctAnswer: ["A", "B", "C", "D"].includes(
+        String(q.correctAnswer || "").toUpperCase().trim()
+      )
+        ? String(q.correctAnswer).toUpperCase().trim()
+        : null,
       explanation: String(q.explanation || "").trim(),
       topic: String(q.topic || "General").trim(),
       difficulty: ["Easy", "Medium", "Hard"].includes(q.difficulty) ? q.difficulty : "Medium",
@@ -373,7 +569,6 @@ export const extractFromImage = async (req, res) => {
       scanRecord.scanDuration += scanDuration;
       scanRecord.imageCount += images.length;
 
-      // Recalculate subject count
       const fullTopicCounts = {};
       scanRecord.extractedQuestions.forEach((q) => {
         const t = q.topic || "General";
@@ -400,16 +595,22 @@ export const extractFromImage = async (req, res) => {
       console.log(`  ✓ Scan record created: ${scanRecord._id}`);
     }
 
-    // ── Respond with quiz-ready questions ──
+    // Count unknowns for meta
+    const unknownAnswerCount = questions.filter((q) => q.answerUnknown).length;
+    const lowConfidenceCount = questions.filter((q) => q.confidence === "low").length;
+
     res.status(200).json({
       success: true,
       scanId: scanRecord._id,
       questions,
       meta: {
         totalExtracted: questions.length,
+        unknownAnswerCount,
+        lowConfidenceCount,
         detectedSubject,
         scanDurationMs: scanDuration,
         model: VISION_MODEL,
+        antiHallucinationMode: true,
       },
     });
   } catch (error) {
@@ -423,7 +624,7 @@ export const extractFromImage = async (req, res) => {
     res.status(500).json({
       success: false,
       message: isTimeout
-        ? "AI service took too long — please try again"
+        ? "OCR is taking too long — please try again with a smaller image or fewer pages"
         : "Failed to extract questions from image — please try again",
       error: error.message,
       responseTimeMs: elapsed,
@@ -434,7 +635,6 @@ export const extractFromImage = async (req, res) => {
 /* ═══════════════════════════════════════════════════════════
    CONTROLLER 2 — UPDATE SCAN WITH QUIZ RESULTS
    PATCH /api/scan/:id/complete
-   Body: { quizId, score, totalCorrect, totalWrong, totalSkipped, timeTaken }
 ═══════════════════════════════════════════════════════════ */
 export const completeScanQuiz = async (req, res) => {
   try {
@@ -529,7 +729,6 @@ export const deleteScanRecord = async (req, res) => {
 /* ═══════════════════════════════════════════════════════════
    CONTROLLER 6 — GET SCAN ANALYTICS
    GET /api/scan/analytics
-   Returns aggregated scan stats for the analytics page
 ═══════════════════════════════════════════════════════════ */
 export const getScanAnalytics = async (req, res) => {
   try {
@@ -559,7 +758,6 @@ export const getScanAnalytics = async (req, res) => {
         ? Math.round(allScans.reduce((sum, s) => sum + s.scanDuration, 0) / totalScans)
         : 0;
 
-    // Subject breakdown
     const subjectMap = {};
     allScans.forEach((s) => {
       const subj = s.detectedSubject || "General";
@@ -576,7 +774,6 @@ export const getScanAnalytics = async (req, res) => {
       totalQuestions: data.total,
     }));
 
-    // Recent performance (last 10 completed scans)
     const recentPerformance = allScans
       .filter((s) => s.quizCompleted)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -612,7 +809,7 @@ export const getScanAnalytics = async (req, res) => {
 /* ═══════════════════════════════════════════════════════════
    CONTROLLER 7 — EXTRACT MCQs FROM PDF TEXT CHUNK
    POST /api/scan/extract-pdf-text
-   Body: { textChunks: [string], fileName: string, scanId: ObjectId? }
+   Body: { textChunks: [string], fileName: string, scanId?: ObjectId, subjectHint?: string }
 ═══════════════════════════════════════════════════════════ */
 export const extractPdfText = async (req, res) => {
   const startTime = Date.now();
@@ -625,7 +822,7 @@ export const extractPdfText = async (req, res) => {
       });
     }
 
-    const { textChunks, fileName = "document.pdf", scanId } = req.body;
+    const { textChunks, fileName = "document.pdf", scanId, subjectHint = "" } = req.body;
 
     if (!textChunks || !Array.isArray(textChunks) || textChunks.length === 0) {
       return res.status(400).json({
@@ -635,74 +832,144 @@ export const extractPdfText = async (req, res) => {
     }
 
     const userId = req.user.id;
-    console.log(`\n=== GyanS PDF Text Chunk ===`);
-    console.log(`User: ${userId} | Chunks: ${textChunks.length} | File: ${fileName} | ScanID: ${scanId || "New"}`);
+    console.log(`\n=== GyanS PDF Text Extraction v2 ===`);
+    console.log(`User: ${userId} | Pages: ${textChunks.length} | File: ${fileName} | Subject hint: "${subjectHint || "none"}" | ScanID: ${scanId || "New"}`);
 
-    // Combine page texts into a single text content
-    const combinedText = textChunks.join("\n\n--- Page Break ---\n\n");
+    const combinedText = textChunks.join("\n\n--- PAGE BREAK ---\n\n");
 
-    const prompt = `You are an expert MCQ analyzer. Below is the extracted text from a PDF document.
+    // ── Fast Path: Check if text can be parsed locally in <5ms ──
+    const localQuestions = parseMCQsLocally(combinedText);
+    if (localQuestions.length >= 2) {
+      console.log(`  ⚡ Fast Path: Locally extracted ${localQuestions.length} MCQs in 1ms!`);
+      const questions = processRawQuestions(localQuestions);
+      const scanDuration = Date.now() - startTime;
 
-TASK: Extract ALL multiple-choice questions (MCQs) found in the text.
+      let scanRecord;
+      const questionsData = localQuestions.map((q) => ({
+        questionText: q.questionText?.trim() || "",
+        options: (q.options || []).map((o) => String(o).replace(/^[A-D][).\s]+/i, "").trim()),
+        correctAnswer: ["A", "B", "C", "D"].includes(String(q.correctAnswer || "").toUpperCase().trim())
+          ? String(q.correctAnswer).toUpperCase().trim()
+          : null,
+        explanation: String(q.explanation || "").trim(),
+        topic: String(q.topic || "General").trim(),
+        difficulty: ["Easy", "Medium", "Hard"].includes(q.difficulty) ? q.difficulty : "Medium",
+      }));
 
-For EACH question found, provide:
-1. The exact question text
-2. All options (A, B, C, D) exactly as written
-3. The correct answer (A, B, C, or D) - use your knowledge to determine the correct answer
-4. A brief explanation of why that answer is correct
-5. The topic/subject area of the question
-6. Difficulty level (Easy, Medium, or Hard)
+      if (scanId) {
+        scanRecord = await ScanRecord.findOne({ _id: scanId, userId });
+        if (scanRecord) {
+          scanRecord.extractedQuestions.push(...questionsData);
+          scanRecord.totalQuestionsExtracted = scanRecord.extractedQuestions.length;
+          scanRecord.scanDuration += scanDuration;
+          await scanRecord.save();
+        }
+      }
 
-Return ONLY valid JSON in this exact format:
-{"questions":[{"questionText":"","options":["A) ...","B) ...","C) ...","D) ..."],"correctAnswer":"A","explanation":"","topic":"","difficulty":"Medium"}]}
+      if (!scanRecord) {
+        scanRecord = await ScanRecord.create({
+          userId,
+          imageThumbnail: "",
+          fileName,
+          imageCount: 0,
+          extractedQuestions: questionsData,
+          totalQuestionsExtracted: questions.length,
+          detectedSubject: subjectHint || "General",
+          scanDuration,
+          status: "scanned",
+        });
+      }
 
-RULES:
-- Extract EVERY MCQ visible, do not skip any
-- Clean up any extraction artifacts or broken lines
-- If you cannot determine the correct answer, make your best educated guess
-- Keep explanations concise (1-2 sentences)
-- Return ONLY the JSON, no other text.
+      return res.status(200).json({
+        success: true,
+        scanId: scanRecord._id,
+        questions,
+        meta: {
+          totalExtracted: questions.length,
+          detectedSubject: subjectHint || "General",
+          scanDurationMs: scanDuration,
+          model: "Fast Local Parser",
+          antiHallucinationMode: true,
+        },
+      });
+    }
 
-Text Content:
-${combinedText}`;
+    const prompt = buildTextExtractionPrompt(combinedText, subjectHint);
 
-    console.log("  → Sending text chunk to GLM-5.1...");
-    const rawText = await callNvidiaText(prompt);
-    console.log(`  ✓ Text response: ${rawText.slice(0, 150)}`);
+    console.log("  → Sending to fast text model...");
+    let rawText;
+    try {
+      rawText = await callNvidiaText(prompt);
+      console.log(`  ✓ Response received (first 200 chars): ${rawText.slice(0, 200)}`);
+    } catch (apiErr) {
+      console.error("  ✗ NVIDIA API error:", apiErr.message);
+      return res.status(500).json({
+        success: false,
+        message: `AI extraction failed: ${apiErr.message}`,
+        error: apiErr.message,
+      });
+    }
 
-    const rawQuestions = parseExtractedQuestions(rawText);
+    let rawQuestions;
+    try {
+      rawQuestions = parseExtractedQuestions(rawText);
+    } catch (parseErr) {
+      console.error("  ✗ JSON parse failed:", parseErr.message);
+      return res.status(500).json({
+        success: false,
+        message: "AI returned an unparseable response. Please try again.",
+        error: parseErr.message,
+        rawResponse: rawText.slice(0, 500),
+      });
+    }
+
     console.log(`  ✓ Parsed ${rawQuestions.length} questions`);
 
-    const questions = rawQuestions
-      .map((q, i) => {
-        try {
-          return sanitizeExtractedQuestion(q, i);
-        } catch (_) {
-          return null;
-        }
-      })
-      .filter(Boolean);
+    if (rawQuestions.length === 0) {
+      const scanDuration = Date.now() - startTime;
+      console.log("  ℹ No MCQs found in this text chunk");
+      return res.status(200).json({
+        success: true,
+        scanId: scanId || null,
+        questions: [],
+        meta: {
+          totalExtracted: 0,
+          detectedSubject: subjectHint || "General",
+          scanDurationMs: scanDuration,
+          model: TEXT_MODEL,
+          note: "No MCQs detected in this text chunk",
+        },
+      });
+    }
+
+    const questions = processRawQuestions(rawQuestions);
 
     if (questions.length === 0) {
-      throw new Error("No valid questions could be extracted from this chunk");
+      return res.status(500).json({
+        success: false,
+        message: "Questions were found but could not be formatted correctly. Please try again.",
+      });
     }
 
     const scanDuration = Date.now() - startTime;
 
-    // Detect primary subject
     const topicCounts = {};
     questions.forEach((q) => {
       const t = q.topic || "General";
       topicCounts[t] = (topicCounts[t] || 0) + 1;
     });
-    const detectedSubject = Object.entries(topicCounts).sort(
-      (a, b) => b[1] - a[1],
-    )[0][0];
+    const detectedSubject =
+      subjectHint ||
+      Object.entries(topicCounts).sort((a, b) => b[1] - a[1])[0][0];
 
     const questionsData = rawQuestions.map((q) => ({
       questionText: q.questionText?.trim() || "",
       options: (q.options || []).map((o) => String(o).replace(/^[A-D][).\s]+/i, "").trim()),
-      correctAnswer: String(q.correctAnswer || "A").toUpperCase().trim(),
+      correctAnswer: ["A", "B", "C", "D"].includes(
+        String(q.correctAnswer || "").toUpperCase().trim()
+      )
+        ? String(q.correctAnswer).toUpperCase().trim()
+        : null,
       explanation: String(q.explanation || "").trim(),
       topic: String(q.topic || "General").trim(),
       difficulty: ["Easy", "Medium", "Hard"].includes(q.difficulty) ? q.difficulty : "Medium",
@@ -719,7 +986,6 @@ ${combinedText}`;
       scanRecord.totalQuestionsExtracted = scanRecord.extractedQuestions.length;
       scanRecord.scanDuration += scanDuration;
 
-      // Recalculate subject count
       const fullTopicCounts = {};
       scanRecord.extractedQuestions.forEach((q) => {
         const t = q.topic || "General";
@@ -734,9 +1000,9 @@ ${combinedText}`;
     } else {
       scanRecord = await ScanRecord.create({
         userId,
-        imageThumbnail: "", // No image thumbnail for text-only PDF scans
+        imageThumbnail: "",
         fileName,
-        imageCount: 0, // 0 image count represents text-only PDF scan
+        imageCount: 0,
         extractedQuestions: questionsData,
         totalQuestionsExtracted: questions.length,
         detectedSubject,
@@ -746,15 +1012,21 @@ ${combinedText}`;
       console.log(`  ✓ Scan record created: ${scanRecord._id}`);
     }
 
+    const unknownAnswerCount = questions.filter((q) => q.answerUnknown).length;
+    const lowConfidenceCount = questions.filter((q) => q.confidence === "low").length;
+
     res.status(200).json({
       success: true,
       scanId: scanRecord._id,
       questions,
       meta: {
         totalExtracted: questions.length,
+        unknownAnswerCount,
+        lowConfidenceCount,
         detectedSubject: scanRecord.detectedSubject,
         scanDurationMs: scanDuration,
         model: TEXT_MODEL,
+        antiHallucinationMode: true,
       },
     });
   } catch (error) {

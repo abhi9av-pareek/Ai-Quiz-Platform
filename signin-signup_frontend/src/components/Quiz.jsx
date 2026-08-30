@@ -363,6 +363,51 @@ const LETTERS = ["A", "B", "C", "D"];
 const CIRCUMFERENCE = 2 * Math.PI * 26;
 
 /* ════════════════════════════════════════════════════════
+   HELPER — Shuffle options and re-index correct answer
+════════════════════════════════════════════════════════ */
+const shuffleQuestionOptions = (q) => {
+  if (!q || !Array.isArray(q.options) || q.options.length < 2) return q;
+
+  const validLetters = ["A", "B", "C", "D"];
+  let cleanedOptions = q.options.map((opt) =>
+    String(opt)
+      .replace(/^(?:Option\s+[A-D]:|[A-D][).:\s]+)/i, "")
+      .trim()
+  );
+  while (cleanedOptions.length < 4) {
+    cleanedOptions.push("None of the above");
+  }
+  cleanedOptions = cleanedOptions.slice(0, 4);
+
+  let originalCorrectIdx = 0;
+  if (typeof q.answer === "number" && q.answer >= 0 && q.answer < cleanedOptions.length) {
+    originalCorrectIdx = q.answer;
+  } else if (typeof q.correctAnswer === "string") {
+    const map = { A: 0, B: 1, C: 2, D: 3 };
+    originalCorrectIdx = map[q.correctAnswer.toUpperCase().trim()] ?? 0;
+  }
+
+  const correctText = cleanedOptions[originalCorrectIdx] ?? cleanedOptions[0];
+
+  const shuffled = [...cleanedOptions];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const newCorrectIdx = shuffled.indexOf(correctText);
+  const safeNewIdx = newCorrectIdx >= 0 ? newCorrectIdx : 0;
+  const newCorrectLetter = validLetters[safeNewIdx];
+
+  return {
+    ...q,
+    options: shuffled,
+    answer: safeNewIdx,
+    correctAnswer: newCorrectLetter,
+  };
+};
+
+/* ════════════════════════════════════════════════════════
    HELPER — safely read token from localStorage
    Handles cases where token was accidentally stored as
    JSON string e.g. '"eyJ..."' (with extra quotes)
@@ -449,8 +494,13 @@ export default function Quiz() {
         // ── GyanS: use pre-generated questions if provided ──
         if (preGeneratedQuestions && preGeneratedQuestions.length > 0) {
           console.log(`GyanS: Using ${preGeneratedQuestions.length} pre-generated questions`);
-          let qs = preGeneratedQuestions;
-          if (quizOptions.shuffle) {
+          let qs = preGeneratedQuestions.map((q) => {
+            if (q.correctAnswer && q.correctAnswer !== "?") {
+              return shuffleQuestionOptions(q);
+            }
+            return q;
+          });
+          if (quizOptions.shuffle !== false) {
             qs = [...qs].sort(() => Math.random() - 0.5);
           }
           setQuestions(qs);
@@ -467,7 +517,16 @@ export default function Quiz() {
           return;
         }
 
-        const subjects = Array.isArray(subject) ? subject : [subject];
+        const rawSubjects = Array.isArray(subject) ? subject : [subject];
+        const subjects = rawSubjects.filter(Boolean);
+        if (subjects.length === 0) subjects.push("Mathematics");
+
+        // Clear any stale cached questions so language / subject changes are always respected
+        try {
+          await axiosInstance.post("/api/quiz/clear-cache");
+        } catch (_) {
+          // Non-critical: if cache clear fails, continue quiz generation anyway
+        }
 
         //  axiosInstance already has baseURL + Authorization interceptor
         const res = await axiosInstance.post("/api/quiz/generate-questions", {
@@ -483,8 +542,8 @@ export default function Quiz() {
           throw new Error(data.message || "No questions returned");
         }
 
-        let qs = data.questions;
-        if (quizOptions.shuffle) {
+        let qs = data.questions.map(shuffleQuestionOptions);
+        if (quizOptions.shuffle !== false) {
           qs = [...qs].sort(() => Math.random() - 0.5);
         }
 
@@ -536,7 +595,6 @@ export default function Quiz() {
               if (idx < questions.length - 1) return idx + 1;
               return idx;
             });
-            setFeedback(null);
           }, 700);
           return 0;
         }
@@ -557,19 +615,36 @@ export default function Quiz() {
 
   useEffect(() => () => stopTimer(), []);
 
+  // Update feedback when navigating between already answered questions
+  useEffect(() => {
+    if (answered[currentIdx]) {
+      const ans = answered[currentIdx];
+      setFeedback({
+        correct: ans.correct,
+        explanation:
+          currentQ?.explanation ||
+          (ans.correct
+            ? "Correct! Well done."
+            : `The correct answer is: ${currentQ?.options?.[currentQ?.answer] || currentQ?.correctAnswer}`),
+      });
+    } else {
+      setFeedback(null);
+    }
+  }, [currentIdx, answered, currentQ]);
+
   /* ════════════ ANSWER SELECTION ════════════ */
   const selectOption = (optionIdx) => {
     if (answered[currentIdx] || skipped[currentIdx]) return;
     stopTimer();
 
     const timeTaken = Math.round((Date.now() - startTimeRef.current) / 1000);
-    const correct = optionIdx === currentQ.answer;
+    const isCorrect = optionIdx === currentQ.answer;
 
     setAnswered((prev) => ({
       ...prev,
       [currentIdx]: {
         chosen: optionIdx,
-        correct,
+        correct: isCorrect,
         timeTaken,
         questionText: currentQ.question,
         options: currentQ.options,
@@ -581,12 +656,15 @@ export default function Quiz() {
       },
     }));
 
-    const showInstant = quizOptions?.instant === true || quizOptions?.instantFeedback === true;
-    if (showInstant) {
-      setFeedback({ correct, explanation: currentQ.explanation });
-    } else {
-      setFeedback(null);
-    }
+    // Always show immediate feedback on answer selection
+    setFeedback({
+      correct: isCorrect,
+      explanation:
+        currentQ.explanation ||
+        (isCorrect
+          ? "Correct! Well done."
+          : `The correct answer is: ${currentQ.options[currentQ.answer]}`),
+    });
   };
 
   /* ════════════ NAVIGATION ════════════ */
@@ -594,14 +672,12 @@ export default function Quiz() {
     if (answered[currentIdx]) return;
     stopTimer();
     setSkipped((prev) => ({ ...prev, [currentIdx]: true }));
-    setFeedback(null);
     if (currentIdx < totalQ - 1) {
       setCurrentIdx((i) => i + 1);
     }
   };
 
   const handleNext = () => {
-    setFeedback(null);
     if (currentIdx < totalQ - 1) {
       setCurrentIdx((i) => i + 1);
     }
@@ -609,7 +685,6 @@ export default function Quiz() {
 
   const jumpTo = (idx) => {
     stopTimer();
-    setFeedback(null);
     setCurrentIdx(idx);
     setShowMap(false);
   };
@@ -730,13 +805,9 @@ export default function Quiz() {
     const ans = answered[currentIdx];
     if (!ans) return "";
 
-    const showInstant = quizOptions?.instant === true || quizOptions?.instantFeedback === true;
-    if (showInstant) {
-      if (optIdx === currentQ.answer) return "correct";
-      if (optIdx === ans.chosen) return "wrong";
-    } else {
-      if (optIdx === ans.chosen) return "selected";
-    }
+    if (optIdx === currentQ.answer) return "correct";
+    if (optIdx === ans.chosen && !ans.correct) return "wrong";
+    if (optIdx === ans.chosen) return "correct";
     return "";
   };
 

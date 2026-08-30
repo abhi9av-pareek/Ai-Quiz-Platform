@@ -226,7 +226,7 @@ export const submitQuiz = async (req, res) => {
         weakTopicsDetected,
         newXP: user.xp,
         newStreak: user.streak,
-        accuracy: user.accuracy, // virtual field
+        accuracy: user.accuracy,
         rank: user.rank,
       },
     });

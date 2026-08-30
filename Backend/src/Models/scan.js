@@ -5,10 +5,12 @@ const extractedQuestionSchema = new mongoose.Schema(
   {
     questionText: { type: String, required: true },
     options: { type: [String], default: [] },
-    correctAnswer: { type: String, default: "A" },   // A/B/C/D
+    correctAnswer: { type: String, default: null },  // A/B/C/D, or null if answer not visible in source
     explanation: { type: String, default: "" },
     topic: { type: String, default: "General" },
     difficulty: { type: String, enum: ["Easy", "Medium", "Hard"], default: "Medium" },
+    confidence: { type: String, enum: ["high", "low"], default: "high" },  // "high" = answer clearly visible, "low" = inferred
+    warnings: { type: [String], default: [] },  // OCR validation warnings for this question
   },
   { _id: false },
 );

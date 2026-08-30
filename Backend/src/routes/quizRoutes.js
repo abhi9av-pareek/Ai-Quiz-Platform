@@ -1,6 +1,6 @@
 import express from "express";
 
-import { generateQuestions } from "../controllers/questionController.js";
+import { generateQuestions, clearQuizCache } from "../controllers/questionController.js";
 import {
   submitQuiz,
   getDashboardData,
@@ -24,5 +24,10 @@ router.get("/bookmarks",           verifyToken, getBookmarks);
 router.post("/bookmark",           verifyToken, addBookmark);
 router.patch("/bookmark/:questionId",  verifyToken, updateBookmarkNotes);
 router.delete("/bookmark/:questionId", verifyToken, removeBookmark);
+// Cache management (dev + client refresh)
+router.post("/clear-cache", verifyToken, (req, res) => {
+  clearQuizCache();
+  res.json({ success: true, message: "Quiz cache cleared" });
+});
 
 export default router;

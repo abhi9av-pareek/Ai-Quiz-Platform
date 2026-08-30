@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { AlertTriangle, AlertCircle, CheckCircle, BookOpen, Rocket, BarChart3, FileText, Flame } from "lucide-react";
+import { AlertTriangle, AlertCircle, CheckCircle, BookOpen, Rocket, BarChart3, FileText, Flame, Brain, TrendingUp, TrendingDown, Target, Zap, Award, Lightbulb, ChevronRight } from "lucide-react";
 import SuggestionBox from "./common/SuggestionBox";
 
 /* ─── CSS ─── */
@@ -146,10 +146,19 @@ const css = `
   .rs-time-bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; }
   .rs-time-bar  { flex: 1; border-radius: 4px 4px 0 0; min-width: 6px; transition: height .8s cubic-bezier(.4,0,.2,1); }
 
+  .li-unknown-note { background: rgba(255,255,255,0.03); border: 1px dashed var(--border2); border-radius: 12px; padding: 12px 16px; font-size: 12px; color: var(--muted); line-height: 1.5; text-align: center; }
+
+  @media (max-width: 600px) {
+    .li-sw-grid { grid-template-columns: 1fr; }
+    .li-body { padding: 1rem; }
+    .li-header { padding: 1rem; }
+  }
+
+  @keyframes rs-spin { to { transform: rotate(360deg); } }
+
   /* LOADING */
   .rs-center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 14px; }
   .rs-spinner { width: 40px; height: 40px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: rs-spin .8s linear infinite; }
-  @keyframes rs-spin { to { transform: rotate(360deg); } }
 
   /* TABS */
   .rs-tabs { display: flex; gap: 4px; background: var(--surface2); padding: 4px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 1.25rem; width: fit-content; }
@@ -371,9 +380,8 @@ const generateSuggestions = (topicStats, scorePercent) => {
   return suggestions;
 };
 
-/* ════════════════════════════════════════════════
-   MAIN COMPONENT
-════════════════════════════════════════════════ */
+
+
 export default function Results() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -602,6 +610,8 @@ export default function Results() {
               ))}
             </div>
           )}
+
+
 
           {/* ── SUGGESTIONS ── */}
           {suggestions.length > 0 && (

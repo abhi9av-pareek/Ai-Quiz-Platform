@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
-import { Sigma, Atom, FlaskConical, Leaf, Monitor, PenLine, BookOpen, ScanLine, Target, Bookmark, Users, Flame, X, Brain, TrendingDown, ChevronRight, ChevronDown, Code, Layers } from "lucide-react";
+import { Sigma, Atom, FlaskConical, Leaf, Monitor, PenLine, BookOpen, ScanLine, Target, Bookmark, Users, Flame, X, Brain, TrendingDown, TrendingUp, ChevronRight, ChevronDown, Code, Layers, Zap, Award, Lightbulb } from "lucide-react";
 import { AvatarRender } from "./Profile";
 import SuggestionBox from "./common/SuggestionBox";
 
@@ -423,6 +423,7 @@ function Dashboard() {
   const [onboardingData, setOnboardingData] = useState({ contactNumber: "", educationLevel: "" });
   const [onboardingLoading, setOnboardingLoading] = useState(false);
 
+
   const fetchDashboard = async (token) => {
     try {
       const res = await fetch(
@@ -687,15 +688,6 @@ function Dashboard() {
 
             {/* ── QUICK ACTIONS ── */}
             <div className="bb-quick-row">
-
-              <div
-                className="bb-quick-btn"
-                style={{ border: "1px solid rgba(129, 140, 248, 0.4)", background: "rgba(129, 140, 248, 0.08)" }}
-                onClick={() => navigate("/dsa")}
-              >
-                <div className="qb-icon" style={{ display: "flex", justifyContent: "center", color: "#818cf8" }}><Code size={20} /></div>
-                <div className="qb-label" style={{ color: "#a5b4fc", fontWeight: "bold" }}>GyanCode</div>
-              </div>
               <div className="bb-quick-btn" onClick={handleGyanS}>
                 <div className="qb-icon" style={{ display: "flex", justifyContent: "center" }}><ScanLine size={20} /></div>
                 <div className="qb-label">GyanS</div>
@@ -831,6 +823,8 @@ function Dashboard() {
                 )}
               </div>
             )}
+
+
 
 
 

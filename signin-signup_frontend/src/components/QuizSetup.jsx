@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Sigma, Atom, FlaskConical, Cpu, Monitor, PenLine, Shuffle, Lightbulb, Zap, ClipboardList, Check, Brain, Globe } from "lucide-react";
 
 const css = `
@@ -95,22 +95,19 @@ const css = `
   .bb-section-divider .divider-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 
   /* LANGUAGE GRID */
-  .bb-lang-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 1.75rem; max-height: 260px; overflow-y: auto; padding-right: 4px; }
-  .bb-lang-grid::-webkit-scrollbar { width: 4px; }
-  .bb-lang-grid::-webkit-scrollbar-track { background: transparent; }
-  .bb-lang-grid::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 4px; }
-  .bb-lang-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem 0.5rem; cursor: pointer; transition: all .25s cubic-bezier(.4,0,.2,1); text-align: center; position: relative; overflow: hidden; }
+  .bb-lang-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 1.75rem; }
+  .bb-lang-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem 1rem; cursor: pointer; transition: all .25s cubic-bezier(.4,0,.2,1); text-align: center; position: relative; overflow: hidden; }
   .bb-lang-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, rgba(124,92,252,0.08), transparent 70%); opacity: 0; transition: opacity .25s; }
-  .bb-lang-card:hover { border-color: var(--border2); background: var(--surface2); transform: translateY(-1px); }
+  .bb-lang-card:hover { border-color: var(--border2); background: var(--surface2); transform: translateY(-2px); }
   .bb-lang-card:hover::before { opacity: 1; }
-  .bb-lang-card.sel { border-color: var(--accent); background: rgba(124,92,252,0.08); box-shadow: 0 0 16px rgba(124,92,252,0.15); }
+  .bb-lang-card.sel { border-color: var(--accent); background: rgba(124,92,252,0.08); box-shadow: 0 0 20px rgba(124,92,252,0.18); }
   .bb-lang-card.sel::before { opacity: 1; }
-  .bb-lang-card .lang-flag { font-size: 22px; margin-bottom: 4px; line-height: 1; }
-  .bb-lang-card .lang-name { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .bb-lang-card .lang-flag { font-size: 32px; margin-bottom: 8px; line-height: 1; }
+  .bb-lang-card .lang-name { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.2; }
   .bb-lang-card.sel .lang-name { color: var(--accent); }
-  .bb-lang-card .lang-native { font-size: 10px; color: var(--muted); margin-top: 1px; line-height: 1.2; }
-  .bb-lang-card.sel .lang-native { color: rgba(124,92,252,0.7); }
-  .bb-lang-card .lang-check { position: absolute; top: 5px; right: 5px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.5); transition: all .2s cubic-bezier(.4,0,.2,1); }
+  .bb-lang-card .lang-native { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.2; }
+  .bb-lang-card.sel .lang-native { color: rgba(124,92,252,0.85); font-weight: 500; }
+  .bb-lang-card .lang-check { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.5); transition: all .2s cubic-bezier(.4,0,.2,1); }
   .bb-lang-card.sel .lang-check { opacity: 1; transform: scale(1); }
 
   /* SETTINGS */
@@ -167,7 +164,7 @@ const css = `
     .bb-panel-title { font-size: 22px; }
     .bb-subj-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .bb-diff-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .bb-lang-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .bb-lang-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .bb-opt-row { grid-template-columns: 1fr; gap: 8px; }
     .bb-btn-row { flex-direction: column; }
     .bb-btn-row .bb-btn { width: 100%; justify-content: center; }
@@ -188,11 +185,11 @@ const css = `
     .bb-subj-card .s-name { font-size: 12px; }
     .bb-diff-grid { grid-template-columns: 1fr; gap: 8px; }
     .bb-diff-card { padding: 1rem; }
-    .bb-lang-grid { grid-template-columns: repeat(3, 1fr); gap: 5px; max-height: 220px; }
-    .bb-lang-card { padding: 0.6rem 0.4rem; border-radius: 10px; }
-    .bb-lang-card .lang-flag { font-size: 18px; }
-    .bb-lang-card .lang-name { font-size: 11px; }
-    .bb-lang-card .lang-native { font-size: 9px; }
+    .bb-lang-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .bb-lang-card { padding: 0.85rem 0.5rem; border-radius: 12px; }
+    .bb-lang-card .lang-flag { font-size: 24px; }
+    .bb-lang-card .lang-name { font-size: 13px; }
+    .bb-lang-card .lang-native { font-size: 11px; }
     .bb-slider-section { padding: 1rem; }
     .bb-slider-val { font-size: 18px; }
     .bb-opt-card { padding: 0.75rem; }
@@ -251,21 +248,8 @@ const DIFFICULTIES = [
 ];
 
 const LANGUAGES = [
-  { code: "en", name: "English",    flag: "🇬🇧", native: "English" },
-  { code: "hi", name: "Hindi",      flag: "🇮🇳", native: "हिन्दी" },
-  { code: "bn", name: "Bengali",    flag: "🇮🇳", native: "বাংলা" },
-  { code: "ta", name: "Tamil",      flag: "🇮🇳", native: "தமிழ்" },
-  { code: "te", name: "Telugu",     flag: "🇮🇳", native: "తెలుగు" },
-  { code: "mr", name: "Marathi",    flag: "🇮🇳", native: "मराठी" },
-  { code: "es", name: "Spanish",    flag: "🇪🇸", native: "Español" },
-  { code: "fr", name: "French",     flag: "🇫🇷", native: "Français" },
-  { code: "de", name: "German",     flag: "🇩🇪", native: "Deutsch" },
-  { code: "ja", name: "Japanese",   flag: "🇯🇵", native: "日本語" },
-  { code: "ko", name: "Korean",     flag: "🇰🇷", native: "한국어" },
-  { code: "zh", name: "Chinese",    flag: "🇨🇳", native: "中文" },
-  { code: "pt", name: "Portuguese", flag: "🇧🇷", native: "Português" },
-  { code: "ar", name: "Arabic",     flag: "🇸🇦", native: "العربية" },
-  { code: "ru", name: "Russian",    flag: "🇷🇺", native: "Русский" },
+  { code: "en", name: "English", flag: "🇬🇧", native: "English" },
+  { code: "hi", name: "Hindi",   flag: "🇮🇳", native: "हिन्दी" },
 ];
 
 const OPTIONS = [
@@ -291,7 +275,7 @@ const OPTIONS = [
     bg: "rgba(255,179,71,0.1)",
     name: "Instant feedback",
     desc: "See answer immediately",
-    defaultSel: false,
+    defaultSel: true,
   },
   {
     id: "review",
@@ -337,13 +321,16 @@ function Stepper({ step }) {
 
 export default function QuizSetup() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locState = location.state || {};
+  const initialSubject = locState.prefilledSubject || locState.subject || locState.initialSubject || "";
 
   const [step, setStep] = useState(1);
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(initialSubject);
   const [customOpen, setCustomOpen] = useState(false);
   const [customList, setCustomList] = useState([]);
   const [customInput, setCustomInput] = useState("");
-  const [difficulty, setDifficulty] = useState("");
+  const [difficulty, setDifficulty] = useState("Medium");
   const [language, setLanguage] = useState("en");
   const [questions, setQuestions] = useState(10);
   const [timePerQ, setTimePerQ] = useState(30);

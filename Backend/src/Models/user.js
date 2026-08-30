@@ -53,6 +53,13 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
+    /* ── TARGET EXAM (competitive exam focus) ── */
+    targetExam: {
+      type: String,
+      trim: true,
+      default: "", // e.g. "UPSC", "SSC CGL", "GATE", "Banking"
+    },
+
     /* ── PROFILE ── */
     nickname: {
       type: String,
@@ -156,33 +163,6 @@ const userSchema = new mongoose.Schema(
     bookmarks: {
       type: [bookmarkSchema],
       default: [],
-    },
-
-    /* ── DSA PROGRESS ── */
-    dsaProgress: {
-      solvedProblems: {
-        type: [mongoose.Schema.Types.ObjectId],
-        ref: "Problem",
-        default: [],
-      },
-      topicStatus: [
-        {
-          topicName: { type: String },
-          solvedCount: { type: Number, default: 0 },
-        },
-      ],
-      dailyGoalCount: {
-        type: Number,
-        default: 2,
-      },
-      dailyGoalProgress: {
-        type: Number,
-        default: 0,
-      },
-      lastSolvedDate: {
-        type: Date,
-        default: null,
-      },
     },
   },
   {

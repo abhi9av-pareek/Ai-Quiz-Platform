@@ -874,7 +874,7 @@ export default function GyanBot() {
                 <span style={{ fontWeight: 700, display: "block", marginBottom: 2 }}>
                   Allow GyanBot to read my study data
                 </span>
-                When ON, GyanBot uses your quiz scores, scan history, DSA progress &amp; weak areas for personalized advice. Turn OFF for fully private, generic responses.
+                When ON, GyanBot uses your quiz scores, scan history &amp; weak areas for personalized advice. Turn OFF for fully private, generic responses.
               </span>
             </label>
           </div>
@@ -936,13 +936,13 @@ export default function GyanBot() {
                   color: isDark ? "#8b8baa" : "#6b7280",
                   maxWidth: 220,
                 }}>
-                  Your direct, no-nonsense tutor on Gyantraa. Ask anything — DSA, quiz help, code review, or just vibe.
+                  Your direct, no-nonsense tutor on Gyantraa. Ask anything — quiz help, concepts, scan explanations, or study tips.
                 </p>
               </div>
 
               {/* Suggested prompts */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-                {["How's my progress?", "My weak topics?", "Explain binary search", "Best problems today?"].map(s => (
+                {["How's my progress?", "My weak topics?", "Explain quantum physics", "Study tips today?"].map(s => (
                   <button
                     key={s}
                     onClick={() => { setInput(s); setTimeout(() => inputRef.current?.focus(), 50); }}

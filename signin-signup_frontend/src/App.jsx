@@ -13,8 +13,6 @@ import GyantraLanding from "./components/GyantraLanding";
 import GyantraBlog from "./components/GyantraBlog";
 import Bookmarks from "./components/Bookmarks";
 import GyanS from "./components/GyanS";
-import DSADashboard from "./components/dsa/DSADashboard";
-import CodeWorkspace from "./components/dsa/CodeWorkspace";
 import GyanBot from "./components/GyanBot";
 
 // Routes where GyanBot should NOT appear (pre-login pages)
@@ -49,8 +47,6 @@ function App() {
           <Route path="/profile"   element={<Profile />} />
           <Route path="/bookmarks" element={<Bookmarks />} />
           <Route path="/gyans"      element={<GyanS />} />
-          <Route path="/dsa"       element={<DSADashboard />} />
-          <Route path="/dsa/problem/:problemId" element={<CodeWorkspace />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
@@ -58,4 +54,3 @@ function App() {
 }
 
 export default App;
-

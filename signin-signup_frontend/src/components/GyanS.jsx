@@ -3,7 +3,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import axiosInstance from "../utils/axiosConfig";
-import { ScanLine, Upload, Image, Trash2, Edit3, Check, X, Clock, Target, Award, ChevronRight, Brain, Flame, ArrowLeft, History, Camera, FileText, AlertTriangle } from "lucide-react";
+import { ScanLine, Upload, Image, Trash2, Edit3, Check, X, Clock, Target, Award, ChevronRight, Brain, ArrowLeft, History, Camera, FileText, AlertTriangle, ChevronDown, ChevronUp, Plus, HelpCircle, ShieldCheck, ShieldAlert, BookOpen, Lightbulb } from "lucide-react";
 
 // Set up PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -191,11 +191,69 @@ const css = `
   .gs-history-delete { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .2s; flex-shrink: 0; }
   .gs-history-delete:hover { border-color: var(--accent3); color: var(--accent3); background: rgba(255,107,107,0.08); }
 
+  /* SUBJECT HINT INPUT */
+  .gs-subject-hint { margin-bottom: 1rem; }
+  .gs-subject-hint label { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 6px; letter-spacing: 0.3px; }
+  .gs-subject-hint-row { display: flex; align-items: center; gap: 8px; }
+  .gs-subject-input { flex: 1; background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 14px; color: var(--text); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color .2s; }
+  .gs-subject-input:focus { border-color: var(--accent); }
+  .gs-subject-input::placeholder { color: var(--muted2); }
+  .gs-subject-hint-tip { font-size: 11px; color: var(--muted2); margin-top: 4px; }
+
+  /* CONFIDENCE BADGE */
+  .gs-conf-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.4px; }
+  .gs-conf-high { background: rgba(0,229,192,0.1); color: var(--accent2); border: 1px solid rgba(0,229,192,0.2); }
+  .gs-conf-low { background: rgba(255,179,71,0.1); color: var(--amber); border: 1px solid rgba(255,179,71,0.25); }
+  .gs-conf-unknown { background: rgba(255,107,107,0.1); color: var(--accent3); border: 1px solid rgba(255,107,107,0.2); }
+  .gs-question-card.low-conf { border-color: rgba(255,179,71,0.35); }
+  .gs-question-card.answer-unknown { border-color: rgba(255,107,107,0.3); }
+
+  /* WARNINGS STRIP */
+  .gs-q-warnings { background: rgba(255,179,71,0.07); border: 1px solid rgba(255,179,71,0.2); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
+  .gs-q-warning-item { font-size: 11px; color: var(--amber); display: flex; align-items: center; gap: 5px; }
+
+  /* EXPLANATION TOGGLE */
+  .gs-explain-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); cursor: pointer; background: none; border: none; padding: 0; font-family: 'DM Sans', sans-serif; margin-top: 6px; transition: color .2s; }
+  .gs-explain-toggle:hover { color: var(--accent); }
+  .gs-explain-box { background: rgba(124,92,252,0.06); border: 1px solid rgba(124,92,252,0.15); border-radius: 10px; padding: 10px 12px; margin-top: 6px; font-size: 12px; line-height: 1.6; color: var(--muted); animation: gs-fade-in 0.2s ease; }
+  .gs-explain-box .explain-label { font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+  @keyframes gs-fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* MANUAL ADD QUESTION MODAL */
+  .gs-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 1rem; animation: gs-fade-in 0.2s ease; }
+  .gs-modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 1.5rem; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+  .gs-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .gs-modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+  .gs-modal-close { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border2); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .2s; }
+  .gs-modal-close:hover { border-color: var(--accent3); color: var(--accent3); }
+  .gs-modal-field { margin-bottom: 1rem; }
+  .gs-modal-label { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 5px; }
+  .gs-modal-input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 12px; color: var(--text); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; resize: vertical; }
+  .gs-modal-input:focus { border-color: var(--accent); }
+  .gs-modal-input::placeholder { color: var(--muted2); }
+  .gs-modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+  .gs-modal-save { flex: 1; padding: 11px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; border: none; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #0A0B0F; }
+  .gs-modal-cancel { padding: 11px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; background: none; border: 1px solid var(--border2); color: var(--muted); }
+
+  /* ADD QUESTION BUTTON */
+  .gs-add-q-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border-radius: 14px; border: 2px dashed var(--border2); background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .2s; margin-bottom: 1rem; }
+  .gs-add-q-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,92,252,0.04); }
+
+  /* SCAN STATUS LOG */
+  .gs-status-log { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.25rem; margin-top: 1rem; max-width: 400px; margin-left: auto; margin-right: auto; }
+  .gs-status-step { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 0; color: var(--muted); }
+  .gs-status-step.active { color: var(--text); font-weight: 600; }
+  .gs-status-step.done { color: var(--accent2); }
+  .gs-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); flex-shrink: 0; }
+  .gs-status-step.active .gs-status-dot { background: var(--accent); animation: gs-pulse 1s infinite; }
+  .gs-status-step.done .gs-status-dot { background: var(--accent2); }
+
   /* ERROR */
   .gs-error { text-align: center; padding: 2rem; }
   .gs-error-icon { font-size: 40px; margin-bottom: 12px; }
   .gs-error h3 { font-family: 'Syne', sans-serif; font-size: 18px; margin-bottom: 6px; }
-  .gs-error p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .gs-error p { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .gs-error-tip { font-size: 12px; color: var(--amber); background: rgba(255,179,71,0.08); border: 1px solid rgba(255,179,71,0.2); border-radius: 10px; padding: 8px 12px; margin-bottom: 16px; text-align: left; display: flex; gap: 6px; align-items: flex-start; }
   .gs-error-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; border: none; background: var(--accent); color: #fff; }
   .gs-error-btn:hover { background: #9074fd; }
 
@@ -271,33 +329,56 @@ export default function GyanS() {
   const [pdfFile, setPdfFile] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [scanProgressText, setScanProgressText] = useState("");
+  const [scanStep, setScanStep] = useState(0); // 0=idle,1=reading,2=detecting,3=extracting,4=validating
 
-  // Dynamic Scanner logs for Image scanning path
-  useEffect(() => {
-    if (!scanning || pdfFile) return;
-    const logs = [
-      "Initializing GyanS OCR Engine...",
-      "Optimizing image layers for layout scanning...",
-      "Detecting columns and text coordinates...",
-      "Synthesizing questions with NVIDIA DeepSeek AI...",
-      "Generating explanations and difficulty ratings...",
-      "Finalizing MCQ structure..."
-    ];
-    let currentLogIdx = 0;
-    setScanProgressText(logs[0]);
-    const interval = setInterval(() => {
-      currentLogIdx++;
-      if (currentLogIdx < logs.length) {
-        setScanProgressText(logs[currentLogIdx]);
-      }
-    }, 2200);
-    return () => clearInterval(interval);
-  }, [scanning, pdfFile]);
+  // Chunk progress tracking for multi-page PDF scans
+  const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0, extracted: 0 });
+
   const [scanError, setScanError] = useState(null);
   const [extractedQuestions, setExtractedQuestions] = useState([]);
   const [scanMeta, setScanMeta] = useState(null);
   const [scanId, setScanId] = useState(null);
   const [dragging, setDragging] = useState(false);
+
+  // Subject hint
+  const [subjectHint, setSubjectHint] = useState("");
+
+  // Explanation expand per question
+  const [expandedExplanations, setExpandedExplanations] = useState({});
+  const toggleExplanation = (idx) =>
+    setExpandedExplanations((prev) => ({ ...prev, [idx]: !prev[idx] }));
+
+  // Manual add question modal
+  const [showManualModal, setShowManualModal] = useState(false);
+  const emptyManualQ = () => ({
+    question: "",
+    options: ["", "", "", ""],
+    correctAnswer: "A",
+    explanation: "",
+    topic: subjectHint || "General",
+    difficulty: "Medium",
+  });
+  const [manualQ, setManualQ] = useState(emptyManualQ);
+
+  const saveManualQ = () => {
+    if (!manualQ.question.trim()) return;
+    const newQ = {
+      question: manualQ.question.trim(),
+      options: manualQ.options.map((o) => o.trim() || "N/A"),
+      correctAnswer: manualQ.correctAnswer,
+      answer: ["A", "B", "C", "D"].indexOf(manualQ.correctAnswer),
+      explanation: manualQ.explanation.trim() || "Manually added question.",
+      topic: manualQ.topic || subjectHint || "General",
+      subject: manualQ.topic || subjectHint || "General",
+      difficulty: manualQ.difficulty,
+      confidence: "high",
+      answerUnknown: false,
+      warnings: [],
+    };
+    setExtractedQuestions((prev) => [...prev, newQ]);
+    setShowManualModal(false);
+    setManualQ(emptyManualQ());
+  };
 
   // Edit state
   const [editingIdx, setEditingIdx] = useState(null);
@@ -424,7 +505,7 @@ export default function GyanS() {
           canvas.height = h;
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL("image/jpeg", 0.8);
+          const compressed = canvas.toDataURL("image/jpeg", 0.75);
           resolve(compressed);
         };
         img.src = e.target.result;
@@ -476,6 +557,8 @@ export default function GyanS() {
     setScanId(null);
     setScanError(null);
     setEditingIdx(null);
+    setExpandedExplanations({});
+    setScanStep(0);
   };
 
   // ── Drag & Drop ──
@@ -507,6 +590,73 @@ export default function GyanS() {
     }
   };
 
+  /* ────────────────────────────────────────────────────────
+     HELPER — Layout-aware page text extraction from PDF.js
+     Uses y-coordinate grouping to reconstruct proper line
+     breaks between question numbers, text, and options.
+  ──────────────────────────────────────────────────────── */
+  const extractLayoutAwareText = async (page) => {
+    const textContent = await page.getTextContent();
+    if (textContent.items.length === 0) return "";
+
+    // Group text items by their approximate y-position (line)
+    const lineMap = new Map();
+    for (const item of textContent.items) {
+      if (!item.str || !item.str.trim()) continue;
+      // Round y to nearest 3 units to group items on the same line
+      const lineY = Math.round(item.transform[5] / 3) * 3;
+      if (!lineMap.has(lineY)) lineMap.set(lineY, []);
+      lineMap.get(lineY).push({ x: item.transform[4], text: item.str });
+    }
+
+    // Sort lines top-to-bottom (higher y = top in PDF coords)
+    const sortedYs = [...lineMap.keys()].sort((a, b) => b - a);
+
+    // Assemble lines sorted left-to-right within each line
+    const lines = sortedYs.map((y) => {
+      const items = lineMap.get(y).sort((a, b) => a.x - b.x);
+      return items.map((i) => i.text).join(" ");
+    });
+
+    return lines.join("\n");
+  };
+
+  /* ────────────────────────────────────────────────────────
+     HELPER — Deduplicate questions after multi-chunk merge
+  ──────────────────────────────────────────────────────── */
+  const deduplicateExtracted = (questions) => {
+    const seen = new Set();
+    return questions.filter((q) => {
+      const key = (q.question || "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .replace(/[^a-z0-9 ]/g, "")
+        .trim()
+        .slice(0, 80);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  /* ────────────────────────────────────────────────────────
+     HELPER — Run async tasks with a max-concurrency cap.
+     tasks: array of () => Promise
+     concurrency: max simultaneous in-flight promises
+  ──────────────────────────────────────────────────────── */
+  const runWithConcurrency = async (tasks, concurrency) => {
+    const results = new Array(tasks.length);
+    let idx = 0;
+    const worker = async () => {
+      while (idx < tasks.length) {
+        const i = idx++;
+        results[i] = await tasks[i]();
+      }
+    };
+    await Promise.all(Array.from({ length: concurrency }, worker));
+    return results;
+  };
+
   // ── Scan ──
   const handleScan = async () => {
     if (images.length === 0 && !pdfFile) return;
@@ -514,6 +664,9 @@ export default function GyanS() {
     setScanError(null);
     setExtractedQuestions([]);
     setScanProgressText("");
+    setChunkProgress({ current: 0, total: 0, extracted: 0 });
+    setExpandedExplanations({});
+    setScanStep(1); // Reading
 
     try {
       if (pdfFile) {
@@ -522,117 +675,203 @@ export default function GyanS() {
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const totalPages = pdf.numPages;
 
-        setScanProgressText(`Checking text content across ${totalPages} pages...`);
-        const pageTexts = [];
-        let hasExtractableText = false;
+        // ── Step 1: Read all pages to detect and extract text ──
+        setScanStep(2); // Detecting & Reading
+        setScanProgressText(`Reading ${totalPages} pages...`);
+        const allPageTexts = await Promise.all(
+          Array.from({ length: totalPages }, async (_, i) => {
+            try {
+              const page = await pdf.getPage(i + 1);
+              return await extractLayoutAwareText(page);
+            } catch (pageErr) {
+              console.warn(`  ⚠ Failed to read page ${i + 1}:`, pageErr.message);
+              return "";
+            }
+          })
+        );
 
-        for (let i = 1; i <= totalPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const text = textContent.items.map((item) => item.str).join(" ");
-          pageTexts.push(text);
-          if (text.trim().length > 30) {
-            hasExtractableText = true;
-          }
-        }
+        const totalTextLength = allPageTexts.reduce((sum, t) => sum + (t ? t.trim().length : 0), 0);
+        const hasExtractableText = totalTextLength > 50;
 
-        let combinedQuestions = [];
+        const combinedQuestions = [];
         let currentScanId = null;
-        let detectedSubject = "General";
+        let detectedSubject = subjectHint || "General";
         let totalDuration = 0;
+        let chunkErrors = 0;
+        let scanIdSettled = false;
+
+        setScanStep(3); // Extracting
 
         if (hasExtractableText) {
-          // Path A: Text Extraction with Chunking (10 pages per chunk)
-          const chunkSize = 10;
-          const chunks = [];
-          for (let i = 0; i < pageTexts.length; i += chunkSize) {
-            chunks.push(pageTexts.slice(i, i + chunkSize));
-          }
+          // ── PATH A: Text-based PDF (searchable) ──
+          const TEXT_CHUNK_SIZE = 10;
+          const totalChunks = Math.ceil(totalPages / TEXT_CHUNK_SIZE);
+          setChunkProgress({ current: 0, total: totalChunks, extracted: 0 });
+          let chunksCompleted = 0;
 
-          for (let c = 0; c < chunks.length; c++) {
-            const startPage = c * chunkSize + 1;
-            const endPage = Math.min((c + 1) * chunkSize, totalPages);
-            setScanProgressText(`Extracting questions (Pages ${startPage}-${endPage} of ${totalPages})...`);
+          const chunkTasks = Array.from({ length: totalChunks }, (_, c) => async () => {
+            const startPage = c * TEXT_CHUNK_SIZE;
+            const endPage = Math.min((c + 1) * TEXT_CHUNK_SIZE, totalPages);
+            const chunkTexts = allPageTexts.slice(startPage, endPage);
 
-            const chunkData = chunks[c];
-            const res = await axiosInstance.post("/api/scan/extract-pdf-text", {
-              textChunks: chunkData,
-              fileName: pdfFile.name,
-              scanId: currentScanId,
-            });
-
-            if (res.data.success) {
-              combinedQuestions.push(...res.data.questions);
-              currentScanId = res.data.scanId;
-              detectedSubject = res.data.meta.detectedSubject;
-              totalDuration += res.data.meta.scanDurationMs;
-            } else {
-              throw new Error(res.data.message || "Failed to extract questions from text chunk");
+            if (chunkTexts.every((t) => !t.trim())) {
+              chunksCompleted++;
+              setChunkProgress({ current: chunksCompleted, total: totalChunks, extracted: combinedQuestions.length });
+              return;
             }
+
+            const useScanId = currentScanId;
+            try {
+              const res = await axiosInstance.post("/api/scan/extract-pdf-text", {
+                textChunks: chunkTexts,
+                fileName: pdfFile.name,
+                scanId: useScanId,
+                subjectHint: subjectHint.trim(),
+              });
+
+              if (res.data.success) {
+                combinedQuestions.push(...(res.data.questions || []));
+                if (res.data.scanId && !scanIdSettled) {
+                  currentScanId = res.data.scanId;
+                  scanIdSettled = true;
+                }
+                if (res.data.meta?.detectedSubject) detectedSubject = res.data.meta.detectedSubject;
+                totalDuration += res.data.meta?.scanDurationMs || 0;
+              } else {
+                console.warn(`  ⚠ Chunk ${c + 1} returned error: ${res.data.message}`);
+                chunkErrors++;
+              }
+            } catch (chunkErr) {
+              console.error(`  ✗ Chunk ${c + 1} request failed:`, chunkErr.message);
+              chunkErrors++;
+            }
+
+            chunksCompleted++;
+            setScanProgressText(
+              `Extracting questions — ${chunksCompleted}/${totalChunks} chunks done` +
+              (combinedQuestions.length > 0 ? ` · ${combinedQuestions.length} found` : "")
+            );
+            setChunkProgress({ current: chunksCompleted, total: totalChunks, extracted: combinedQuestions.length });
+          });
+
+          setScanProgressText(`Extracting questions from ${totalChunks} chunks...`);
+          await runWithConcurrency(chunkTasks, 3);
+
+          if (chunkErrors > Math.ceil(totalChunks / 2)) {
+            throw new Error(
+              `Too many chunk failures (${chunkErrors}/${totalChunks}). Please try again or use a clearer PDF.`
+            );
           }
+
         } else {
-          // Path B: Scanned PDF Image rendering OCR (2 pages per chunk)
-          setScanProgressText("No text found. Rendering pages to images...");
-          const renderedImages = [];
-          for (let i = 1; i <= totalPages; i++) {
-            setScanProgressText(`Rendering page ${i} of ${totalPages} to image...`);
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = document.createElement("canvas");
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            const ctx = canvas.getContext("2d");
-            await page.render({ canvasContext: ctx, viewport }).promise;
-            const base64 = canvas.toDataURL("image/jpeg", 0.85);
-            renderedImages.push(base64);
-          }
+          // ── PATH B: Scanned image-based PDF — OCR each page ──
+          const totalChunks = totalPages;
+          setChunkProgress({ current: 0, total: totalChunks, extracted: 0 });
+          let pagesCompleted = 0;
 
-          const chunkSize = 2;
-          const chunks = [];
-          for (let i = 0; i < renderedImages.length; i += chunkSize) {
-            chunks.push(renderedImages.slice(i, i + chunkSize));
-          }
-
-          for (let c = 0; c < chunks.length; c++) {
-            const startPage = c * chunkSize + 1;
-            const endPage = Math.min((c + 1) * chunkSize, totalPages);
-            setScanProgressText(`OCR Processing (Pages ${startPage}-${endPage} of ${totalPages})...`);
-
-            const chunkImages = chunks[c];
-            const res = await axiosInstance.post("/api/scan/extract", {
-              images: chunkImages.map((img) => img.startsWith("data:") ? img.split(",")[1] : img),
-              fileName: pdfFile.name,
-              scanId: currentScanId,
-            });
-
-            if (res.data.success) {
-              combinedQuestions.push(...res.data.questions);
-              currentScanId = res.data.scanId;
-              detectedSubject = res.data.meta.detectedSubject;
-              totalDuration += res.data.meta.scanDurationMs;
-            } else {
-              throw new Error(res.data.message || "Failed to extract questions from OCR batch");
+          const pageTasks = Array.from({ length: totalPages }, (_, i) => async () => {
+            const pageNum = i + 1;
+            let base64;
+            try {
+              const page = await pdf.getPage(pageNum);
+              const viewport = page.getViewport({ scale: 1.2 });
+              const canvas = document.createElement("canvas");
+              canvas.width = viewport.width;
+              canvas.height = viewport.height;
+              const ctx = canvas.getContext("2d");
+              await page.render({ canvasContext: ctx, viewport }).promise;
+              base64 = canvas.toDataURL("image/jpeg", 0.72);
+              canvas.width = 0;
+              canvas.height = 0;
+            } catch (renderErr) {
+              console.warn(`  ⚠ Could not render page ${pageNum}:`, renderErr.message);
+              chunkErrors++;
+              pagesCompleted++;
+              setChunkProgress({ current: pagesCompleted, total: totalChunks, extracted: combinedQuestions.length });
+              return;
             }
+
+            const useScanId = currentScanId;
+            try {
+              const res = await axiosInstance.post("/api/scan/extract", {
+                images: [base64.startsWith("data:") ? base64.split(",")[1] : base64],
+                fileName: pdfFile.name,
+                scanId: useScanId,
+                subjectHint: subjectHint.trim(),
+              });
+
+              if (res.data.success) {
+                combinedQuestions.push(...(res.data.questions || []));
+                if (res.data.scanId && !scanIdSettled) {
+                  currentScanId = res.data.scanId;
+                  scanIdSettled = true;
+                }
+                if (res.data.meta?.detectedSubject) detectedSubject = res.data.meta.detectedSubject;
+                totalDuration += res.data.meta?.scanDurationMs || 0;
+              } else {
+                console.warn(`  ⚠ OCR page ${pageNum} returned error: ${res.data.message}`);
+                chunkErrors++;
+              }
+            } catch (chunkErr) {
+              console.error(`  ✗ OCR page ${pageNum} request failed:`, chunkErr.message);
+              chunkErrors++;
+            }
+
+            pagesCompleted++;
+            setScanProgressText(
+              `OCR Scanning — ${pagesCompleted}/${totalPages} pages done` +
+              (combinedQuestions.length > 0 ? ` · ${combinedQuestions.length} found` : "")
+            );
+            setChunkProgress({ current: pagesCompleted, total: totalChunks, extracted: combinedQuestions.length });
+          });
+
+          setScanProgressText(`OCR scanning ${totalPages} pages...`);
+          await runWithConcurrency(pageTasks, 1);
+
+          if (chunkErrors > Math.ceil(totalChunks / 2)) {
+            throw new Error(
+              `Too many OCR failures (${chunkErrors}/${totalChunks}). The scan PDF may be too unclear or corrupted.`
+            );
           }
         }
 
-        setExtractedQuestions(combinedQuestions);
+        setScanStep(4); // Validating
+        setScanProgressText("Validating extracted questions...");
+
+        const deduped = deduplicateExtracted(combinedQuestions);
+        const removedCount = combinedQuestions.length - deduped.length;
+        if (removedCount > 0) console.log(`  ✓ Removed ${removedCount} duplicate questions`);
+
+        if (deduped.length === 0) {
+          throw new Error(
+            chunkErrors > 0
+              ? `No questions could be extracted. ${chunkErrors} pages failed. Check that your PDF contains MCQ questions.`
+              : "No MCQ questions were found in this PDF. Please ensure the document contains multiple-choice questions."
+          );
+        }
+
+        setExtractedQuestions(deduped);
         setScanId(currentScanId);
         setScanMeta({
-          detectedSubject,
+          detectedSubject: subjectHint || detectedSubject,
           scanDurationMs: totalDuration,
-          model: "Hybrid PDF Engine",
+          model: hasExtractableText ? "PDF Text Engine" : "PDF OCR Engine",
+          pagesScanned: totalPages,
+          chunkErrors,
+          unknownAnswerCount: deduped.filter((q) => q.answerUnknown).length,
+          lowConfidenceCount: deduped.filter((q) => q.confidence === "low").length,
         });
       } else {
-        // Existing image extraction path
-        setScanProgressText("Extracting questions from images...");
+        // ── Direct image upload (not PDF) ──
+        setScanStep(3);
+        setScanProgressText("Sending image to GyanS OCR (anti-hallucination mode)...");
         const res = await axiosInstance.post("/api/scan/extract", {
-          images: images.map((img) => {
-            return img.startsWith("data:") ? img : img;
-          }),
+          images: images.map((img) => img.startsWith("data:") ? img.split(",")[1] : img),
           fileName: imageFiles[0]?.name || "scan.jpg",
+          subjectHint: subjectHint.trim(),
         });
 
+        setScanStep(4);
         if (res.data.success) {
           setExtractedQuestions(res.data.questions);
           setScanMeta(res.data.meta);
@@ -649,6 +888,8 @@ export default function GyanS() {
     } finally {
       setScanning(false);
       setScanProgressText("");
+      setChunkProgress({ current: 0, total: 0, extracted: 0 });
+      setScanStep(0);
     }
   };
 
@@ -915,6 +1156,24 @@ export default function GyanS() {
                     onChange={handleFileSelect}
                   />
 
+                  {/* Subject Hint — shown when file is ready */}
+                  {(images.length > 0 || pdfFile) && (
+                    <div className="gs-subject-hint">
+                      <label htmlFor="gs-subject-input">📚 Subject / Topic (optional — helps reduce AI errors)</label>
+                      <div className="gs-subject-hint-row">
+                        <input
+                          id="gs-subject-input"
+                          className="gs-subject-input"
+                          placeholder="e.g. Mathematics, Physics, Indian History, Organic Chemistry…"
+                          value={subjectHint}
+                          onChange={(e) => setSubjectHint(e.target.value)}
+                          maxLength={60}
+                        />
+                      </div>
+                      <div className="gs-subject-hint-tip">✦ Providing a subject hint significantly reduces AI hallucinations on technical papers.</div>
+                    </div>
+                  )}
+
                   {/* Scan / Clear buttons */}
                   {(images.length > 0 || pdfFile) && (
                     <div className="gs-scan-row">
@@ -942,8 +1201,50 @@ export default function GyanS() {
                     </div>
                   </div>
                   <h2>Extracting Questions...</h2>
-                  <p>{scanProgressText || "Gyantraa is analyzing your document and detecting MCQs"}</p>
-                  <div className="gs-dots">
+                  <p style={{ minHeight: 20 }}>{scanProgressText || "GyanS is analysing your document"}</p>
+
+                  {/* Step-by-step status log */}
+                  <div className="gs-status-log">
+                    {[
+                      { label: "Reading document",       step: 1 },
+                      { label: "Detecting content type", step: 2 },
+                      { label: "Extracting questions",   step: 3 },
+                      { label: "Validating results",     step: 4 },
+                    ].map(({ label, step }) => (
+                      <div
+                        key={step}
+                        className={`gs-status-step${scanStep === step ? " active" : ""}${scanStep > step ? " done" : ""}`}
+                      >
+                        <div className="gs-status-dot" />
+                        {scanStep > step ? "✓ " : ""}{label}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Chunk progress bar for multi-page PDFs */}
+                  {chunkProgress.total > 0 && (
+                    <div style={{ margin: "16px auto 0", maxWidth: 340 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
+                        <span>Chunk {chunkProgress.current} / {chunkProgress.total}</span>
+                        {chunkProgress.extracted > 0 && (
+                          <span style={{ color: "var(--accent2)", fontWeight: 600 }}>{chunkProgress.extracted} found so far</span>
+                        )}
+                      </div>
+                      <div style={{ height: 4, borderRadius: 4, background: "var(--surface2)", overflow: "hidden" }}>
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${Math.round((chunkProgress.current / chunkProgress.total) * 100)}%`,
+                            background: "linear-gradient(90deg, var(--accent), var(--accent2))",
+                            borderRadius: 4,
+                            transition: "width 0.4s ease",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="gs-dots" style={{ marginTop: 16 }}>
                     <div className="gs-dot" />
                     <div className="gs-dot" />
                     <div className="gs-dot" />
@@ -959,6 +1260,30 @@ export default function GyanS() {
                   </div>
                   <h3>Extraction Failed</h3>
                   <p>{scanError}</p>
+                  {/* Contextual tips based on error */}
+                  {(scanError.toLowerCase().includes("math") ||
+                    scanError.toLowerCase().includes("formula") ||
+                    scanError.toLowerCase().includes("parse") ||
+                    scanError.toLowerCase().includes("unparse")) && (
+                    <div className="gs-error-tip">
+                      <Lightbulb size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                      <span>For math/science papers: ensure the image is well-lit and all symbols are clearly visible. Try adding a subject hint like "Mathematics" before scanning to help the AI focus.</span>
+                    </div>
+                  )}
+                  {(scanError.toLowerCase().includes("ocr") ||
+                    scanError.toLowerCase().includes("image") ||
+                    scanError.toLowerCase().includes("unclear")) && (
+                    <div className="gs-error-tip">
+                      <Lightbulb size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                      <span>OCR tip: Use a higher resolution photo with good lighting. Avoid shadows and tilted angles. For printed papers, scanning works better than photos.</span>
+                    </div>
+                  )}
+                  {scanError.toLowerCase().includes("no mcq") && (
+                    <div className="gs-error-tip">
+                      <Lightbulb size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                      <span>No MCQs detected. GyanS only extracts multiple-choice questions (A/B/C/D). If your paper has a different format, try editing questions manually after a partial scan.</span>
+                    </div>
+                  )}
                   <button className="gs-error-btn" onClick={() => { setScanError(null); }}>
                     Try Again
                   </button>
@@ -988,11 +1313,53 @@ export default function GyanS() {
                           : "—"}
                       </span>
                     </div>
+                    {scanMeta?.pagesScanned && (
+                      <div className="gs-meta-pill">
+                        <FileText size={13} className="pill-icon" />
+                        <span className="pill-val">{scanMeta.pagesScanned} pages</span>
+                      </div>
+                    )}
+                    {scanMeta?.model && (
+                      <div className="gs-meta-pill">
+                        <Brain size={13} className="pill-icon" />
+                        <span className="pill-val">{scanMeta.model}</span>
+                      </div>
+                    )}
+                    {scanMeta?.chunkErrors > 0 && (
+                      <div className="gs-meta-pill" style={{ borderColor: "rgba(255,107,107,0.3)" }}>
+                        <AlertTriangle size={13} style={{ color: "var(--accent3)" }} />
+                        <span style={{ color: "var(--accent3)", fontWeight: 600 }}>{scanMeta.chunkErrors} pages skipped</span>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Answer unknown / low confidence summary banner */}
+                  {(scanMeta?.unknownAnswerCount > 0 || scanMeta?.lowConfidenceCount > 0) && (
+                    <div className="gs-q-warnings" style={{ marginBottom: "1rem" }}>
+                      {scanMeta.unknownAnswerCount > 0 && (
+                        <div className="gs-q-warning-item">
+                          <ShieldAlert size={12} />
+                          <strong>{scanMeta.unknownAnswerCount} question{scanMeta.unknownAnswerCount > 1 ? "s" : ""}</strong> had no visible answer in the source — marked for your review.
+                        </div>
+                      )}
+                      {scanMeta.lowConfidenceCount > 0 && (
+                        <div className="gs-q-warning-item" style={{ marginTop: 2 }}>
+                          <AlertTriangle size={12} />
+                          <strong>{scanMeta.lowConfidenceCount} question{scanMeta.lowConfidenceCount > 1 ? "s" : ""}</strong> have low OCR confidence — verify before quizzing.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="gs-question-list">
                     {extractedQuestions.map((q, idx) => (
-                      <div key={idx} className="gs-question-card">
+                      <div
+                        key={idx}
+                        className={`gs-question-card${
+                          q.answerUnknown ? " answer-unknown" :
+                          q.confidence === "low" ? " low-conf" : ""
+                        }`}
+                      >
                         <div className="gs-q-top">
                           <span className="gs-q-num">Q{idx + 1}</span>
                           <div className="gs-q-actions">
@@ -1058,14 +1425,26 @@ export default function GyanS() {
                               </select>
                             </div>
                           </>
-                        ) : (
+                          ) : (
                           <>
+                            {/* OCR Warnings strip */}
+                            {q.warnings && q.warnings.length > 0 && (
+                              <div className="gs-q-warnings">
+                                {q.warnings.map((w, wi) => (
+                                  <div key={wi} className="gs-q-warning-item">
+                                    <AlertTriangle size={11} />{w}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <div className="gs-q-text">{q.question}</div>
                             <div className="gs-q-options">
                               {q.options.map((opt, oi) => (
                                 <div
                                   key={oi}
-                                  className="gs-q-opt"
+                                  className={`gs-q-opt${
+                                    !q.answerUnknown && q.correctAnswer === LETTERS[oi] ? " correct" : ""
+                                  }`}
                                 >
                                   <strong>{LETTERS[oi]}.</strong> {opt}
                                 </div>
@@ -1078,12 +1457,50 @@ export default function GyanS() {
                               {q.topic && q.topic !== "General" && (
                                 <span className="gs-q-tag topic">{q.topic}</span>
                               )}
+                              {/* Confidence badge */}
+                              {q.answerUnknown ? (
+                                <span className="gs-conf-badge gs-conf-unknown">
+                                  <ShieldAlert size={9} /> Answer Unknown
+                                </span>
+                              ) : q.confidence === "low" ? (
+                                <span className="gs-conf-badge gs-conf-low">
+                                  <AlertTriangle size={9} /> Low Confidence
+                                </span>
+                              ) : (
+                                <span className="gs-conf-badge gs-conf-high">
+                                  <ShieldCheck size={9} /> Verified
+                                </span>
+                              )}
                             </div>
+                            {/* Explanation toggle */}
+                            {q.explanation && (
+                              <>
+                                <button
+                                  className="gs-explain-toggle"
+                                  onClick={() => toggleExplanation(idx)}
+                                >
+                                  <BookOpen size={11} />
+                                  {expandedExplanations[idx] ? "Hide explanation" : "Why is this the answer?"}
+                                  {expandedExplanations[idx] ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                </button>
+                                {expandedExplanations[idx] && (
+                                  <div className="gs-explain-box">
+                                    <span className="explain-label">EXPLANATION</span>
+                                    {q.explanation}
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </>
                         )}
                       </div>
                     ))}
                   </div>
+
+                  {/* Add question manually */}
+                  <button className="gs-add-q-btn" onClick={() => { setManualQ(emptyManualQ()); setShowManualModal(true); }}>
+                    <Plus size={16} /> Add Question Manually
+                  </button>
 
                   <div className="gs-start-row">
                     <button className="gs-start-btn" onClick={startQuiz}>
@@ -1096,6 +1513,104 @@ export default function GyanS() {
                 </>
               )}
             </>
+          )}
+
+          {/* ══════════ MANUAL ADD MODAL ══════════ */}
+          {showManualModal && (
+            <div className="gs-modal-overlay" onClick={() => setShowManualModal(false)}>
+              <div className="gs-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="gs-modal-header">
+                  <div className="gs-modal-title">Add Question Manually</div>
+                  <button className="gs-modal-close" onClick={() => setShowManualModal(false)}><X size={15} /></button>
+                </div>
+
+                <div className="gs-modal-field">
+                  <label className="gs-modal-label">Question Text *</label>
+                  <textarea
+                    className="gs-modal-input"
+                    rows={3}
+                    placeholder="Enter the full question text here…"
+                    value={manualQ.question}
+                    onChange={(e) => setManualQ({ ...manualQ, question: e.target.value })}
+                  />
+                </div>
+
+                {["A", "B", "C", "D"].map((letter, oi) => (
+                  <div className="gs-modal-field" key={letter}>
+                    <label className="gs-modal-label">Option {letter}</label>
+                    <input
+                      className="gs-modal-input"
+                      placeholder={`Option ${letter}`}
+                      value={manualQ.options[oi]}
+                      onChange={(e) => {
+                        const newOpts = [...manualQ.options];
+                        newOpts[oi] = e.target.value;
+                        setManualQ({ ...manualQ, options: newOpts });
+                      }}
+                    />
+                  </div>
+                ))}
+
+                <div className="gs-modal-field">
+                  <label className="gs-modal-label">Correct Answer</label>
+                  <select
+                    className="gs-modal-input"
+                    value={manualQ.correctAnswer}
+                    onChange={(e) => setManualQ({ ...manualQ, correctAnswer: e.target.value })}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {["A", "B", "C", "D"].map((l) => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+
+                <div className="gs-modal-field">
+                  <label className="gs-modal-label">Explanation (optional)</label>
+                  <textarea
+                    className="gs-modal-input"
+                    rows={2}
+                    placeholder="Why is this the correct answer?"
+                    value={manualQ.explanation}
+                    onChange={(e) => setManualQ({ ...manualQ, explanation: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div className="gs-modal-field" style={{ flex: 1, margin: 0 }}>
+                    <label className="gs-modal-label">Topic</label>
+                    <input
+                      className="gs-modal-input"
+                      placeholder="e.g. Algebra"
+                      value={manualQ.topic}
+                      onChange={(e) => setManualQ({ ...manualQ, topic: e.target.value })}
+                    />
+                  </div>
+                  <div className="gs-modal-field" style={{ flex: 1, margin: 0 }}>
+                    <label className="gs-modal-label">Difficulty</label>
+                    <select
+                      className="gs-modal-input"
+                      value={manualQ.difficulty}
+                      onChange={(e) => setManualQ({ ...manualQ, difficulty: e.target.value })}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <option value="Easy">Easy</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Hard">Hard</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="gs-modal-actions">
+                  <button
+                    className="gs-modal-save"
+                    onClick={saveManualQ}
+                    disabled={!manualQ.question.trim()}
+                  >
+                    <Plus size={14} style={{ display: "inline", marginRight: 4 }} />Add to List
+                  </button>
+                  <button className="gs-modal-cancel" onClick={() => setShowManualModal(false)}>Cancel</button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ══════════ PAST RECORDS TAB ══════════ */}

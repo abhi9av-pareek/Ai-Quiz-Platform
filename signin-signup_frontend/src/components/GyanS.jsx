@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import axiosInstance from "../utils/axiosConfig";
 import { ScanLine, Upload, Image, Trash2, Edit3, Check, X, Clock, Target, Award, ChevronRight, Brain, ArrowLeft, History, Camera, FileText, AlertTriangle, ChevronDown, ChevronUp, Plus, HelpCircle, ShieldCheck, ShieldAlert, BookOpen, Lightbulb } from "lucide-react";
+import SuggestionBox from "./common/SuggestionBox";
 
 // Set up PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -1510,6 +1511,9 @@ export default function GyanS() {
                       ← Scan Another
                     </button>
                   </div>
+
+                  {/* ── FEEDBACK ON GYANS EXTRACTION ── */}
+                  <SuggestionBox context="GyanS Test Extraction" title="Feedback on GyanS Extraction" subtitle="How accurate was the question extraction?" />
                 </>
               )}
             </>

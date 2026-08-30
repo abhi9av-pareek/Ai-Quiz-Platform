@@ -939,6 +939,9 @@ export default function Analytics() {
               <a onClick={() => navigate("/dashboard")}>Dashboard</a>
             </li>
             <li>
+              <a onClick={() => navigate("/performance")}>Performance</a>
+            </li>
+            <li>
               <a onClick={() => navigate("/QuizSetup")}>Practice</a>
             </li>
             <li>

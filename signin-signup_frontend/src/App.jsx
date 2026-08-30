@@ -14,6 +14,7 @@ import GyantraBlog from "./components/GyantraBlog";
 import Bookmarks from "./components/Bookmarks";
 import GyanS from "./components/GyanS";
 import GyanBot from "./components/GyanBot";
+import Performance from "./components/Performance";
 
 // Routes where GyanBot should NOT appear (pre-login pages)
 const PRE_LOGIN_ROUTES = ["/", "/landing", "/blog", "/login", "/signup"];
@@ -39,6 +40,7 @@ function App() {
           <Route path="/login"     element={<LoginModern />} />
           <Route path="/signup"    element={<Signup />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/performance" element={<Performance />} />
           <Route path="/QuizSetup" element={<QuizSetup />} />
           <Route path="/quiz"      element={<Quiz />} />
           <Route path="/results"   element={<Results />} />

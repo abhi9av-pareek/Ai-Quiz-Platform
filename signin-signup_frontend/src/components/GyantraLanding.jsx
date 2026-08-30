@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Zap, Target, BarChart3, Bookmark, Trophy, Lightbulb, Clock, Check, Sparkles, Sun, Moon } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import Footer from "./common/Footer";
+import SuggestionBox from "./common/SuggestionBox";
 
 /* ─── Animated counter ─── */
 function Counter({ to, suffix = "", duration = 2000 }) {
@@ -1006,6 +1007,11 @@ export default function GyantraLanding() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* ══ FEEDBACK (LANDING PAGE) ══ */}
+      <section style={{ padding: "0 1.5rem 3rem", maxWidth: "800px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+        <SuggestionBox context="Landing Page" title="Have Feedback or Suggestions?" subtitle="We would love to hear what feature or subject you want next!" />
       </section>
 
       {/* ── FOOTER ── */}

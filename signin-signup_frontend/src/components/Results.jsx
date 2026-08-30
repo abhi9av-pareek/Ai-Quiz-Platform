@@ -761,8 +761,12 @@ export default function Results() {
             </div>
           )}
 
-          {/* ── SUGGESTION & FEEDBACK BOX ── */}
-          <SuggestionBox context="Quiz Test Completion" title="Feedback on this Quiz Test 💡" />
+          {/* ── FEEDBACK BOX (AFTER TEST) ── */}
+          <SuggestionBox 
+            context={location.state?.scanId ? "GyanS Test Completion" : "Quiz Test Completion"} 
+            title={location.state?.scanId ? "Feedback on this GyanS Test" : "Feedback on this Quiz Test"} 
+            subtitle="How was your test experience? Tell us what you think."
+          />
 
           {/* ── MOTIVATIONAL QUOTE ── */}
           <div className="rs-quote-card rs-fadein-4">

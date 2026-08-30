@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import { Sigma, Atom, FlaskConical, Leaf, Monitor, PenLine, BookOpen, ScanLine, Target, Bookmark, Users, Flame, X, Brain, TrendingDown, TrendingUp, ChevronRight, ChevronDown, Code, Layers, Zap, Award, Lightbulb } from "lucide-react";
 import { AvatarRender } from "./Profile";
-import SuggestionBox from "./common/SuggestionBox";
 
 /* ─── CSS ─── */
 const css = `
@@ -602,6 +601,9 @@ function Dashboard() {
 
           <ul className="bb-nav-links">
             <li>
+              <a onClick={() => navigate("/performance")}>Performance</a>
+            </li>
+            <li>
               <a onClick={() => navigate("/analytics")}>Analytics</a>
             </li>
           </ul>
@@ -983,8 +985,6 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* ── SUGGESTION & FEEDBACK BOX ── */}
-            <SuggestionBox context="Dashboard Bottom" title="Help Us Build Gyantra Better 💡" />
           </main>
         )}
 
@@ -1023,8 +1023,8 @@ function Dashboard() {
               GyanS Scanner
             </div>
 
-            <div onClick={() => alert("Progress tracking is on the way")}>
-              My Progress
+            <div onClick={() => navigate("/performance")}>
+              Performance
             </div>
 
             <div onClick={() => alert("Settings will land here soon ")}>
